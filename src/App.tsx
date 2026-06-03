@@ -1,4 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  fetchProducts, insertProduct, updateProduct,
+  fetchKitchens, insertKitchen, updateKitchen, deleteKitchen,
+  fetchEmployees, insertEmployee, deleteEmployee, upsertEmployeeNote, deleteEmployeeNote,
+  fetchMaterialRequests, insertMaterialRequest, updateMaterialRequestStatus,
+  fetchInventoryLogs, insertInventoryLog,
+  fetchSideExpenses, insertSideExpense, deleteSideExpense,
+} from './lib/supabaseService';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { MetricCards } from './components/MetricCards';
@@ -126,36 +134,44 @@ export default function App() {
   // Primary Role Simulator key
   const [currentRole, setCurrentRole] = useState<EmployeeRole>('مدير النظام');
 
-  // Database persistent state hooks
-  const [products, setProducts] = useState<Product[]>(() => {
-    const cached = localStorage.getItem('erp_charity_products');
-    return cached ? JSON.parse(cached) : INITIAL_PRODUCTS;
-  });
+  // Database state - loaded from Supabase
+  const [products, setProducts] = useState<Product[]>([]);
+  const [kitchens, setKitchens] = useState<Kitchen[]>([]);
+  const [requests, setRequests] = useState<MaterialRequest[]>([]);
+  const [members, setMembers] = useState<Employee[]>([]);
+  const [logs, setLogs] = useState<InventoryLog[]>([]);
+  const [expenses, setExpenses] = useState<SideExpense[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [kitchens, setKitchens] = useState<Kitchen[]>(() => {
-    const cached = localStorage.getItem('erp_charity_kitchens');
-    return cached ? JSON.parse(cached) : INITIAL_KITCHENS;
-  });
+  // Load all data from Supabase on mount
+  const loadAllData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [prods, kits, emps, invLogs, exps] = await Promise.all([
+        fetchProducts(),
+        fetchKitchens(),
+        fetchEmployees(),
+        fetchInventoryLogs(),
+        fetchSideExpenses(),
+      ]);
+      setProducts(prods);
+      setKitchens(kits);
+      setMembers(emps);
+      setLogs(invLogs);
+      setExpenses(exps);
+      // Load requests after kitchens are ready
+      const reqs = await fetchMaterialRequests(kits);
+      setRequests(reqs);
+    } catch (err) {
+      console.error('Error loading data:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
-  const [requests, setRequests] = useState<MaterialRequest[]>(() => {
-    const cached = localStorage.getItem('erp_charity_requests');
-    return cached ? JSON.parse(cached) : INITIAL_REQUESTS;
-  });
-
-  const [members, setMembers] = useState<Employee[]>(() => {
-    const cached = localStorage.getItem('erp_charity_members');
-    return cached ? JSON.parse(cached) : INITIAL_MEMBERS;
-  });
-
-  const [logs, setLogs] = useState<InventoryLog[]>(() => {
-    const cached = localStorage.getItem('erp_charity_logs');
-    return cached ? JSON.parse(cached) : INITIAL_LOGS;
-  });
-
-  const [expenses, setExpenses] = useState<SideExpense[]>(() => {
-    const cached = localStorage.getItem('erp_charity_expenses');
-    return cached ? JSON.parse(cached) : INITIAL_EXPENSES;
-  });
+  useEffect(() => {
+    loadAllData();
+  }, [loadAllData]);
 
   // Modal open/close hooks
   const [isStandaloneShare, setIsStandaloneShare] = useState<boolean>(() => {
@@ -188,7 +204,13 @@ export default function App() {
   const [selectedEmployeeForNotes, setSelectedEmployeeForNotes] = useState<Employee | null>(null);
   const [isEmployeeNotesModalOpen, setIsEmployeeNotesModalOpen] = useState(false);
 
-  const handleUpdateEmployee = (updatedEmployee: Employee) => {
+  const handleUpdateEmployee = async (updatedEmployee: Employee) => {
+    // Sync notes to Supabase
+    if (updatedEmployee.notes) {
+      for (const note of updatedEmployee.notes) {
+        await upsertEmployeeNote(updatedEmployee.id, note.id, note.text, note.date);
+      }
+    }
     const updatedMembers = members.map(m => m.id === updatedEmployee.id ? updatedEmployee : m);
     setMembers(updatedMembers);
     setSelectedEmployeeForNotes(updatedEmployee);
@@ -206,30 +228,6 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('isOwnerMode', isOwnerMode ? 'true' : 'false');
   }, [isOwnerMode]);
-
-  useEffect(() => {
-    localStorage.setItem('erp_charity_products', JSON.stringify(products));
-  }, [products]);
-
-  useEffect(() => {
-    localStorage.setItem('erp_charity_kitchens', JSON.stringify(kitchens));
-  }, [kitchens]);
-
-  useEffect(() => {
-    localStorage.setItem('erp_charity_requests', JSON.stringify(requests));
-  }, [requests]);
-
-  useEffect(() => {
-    localStorage.setItem('erp_charity_members', JSON.stringify(members));
-  }, [members]);
-
-  useEffect(() => {
-    localStorage.setItem('erp_charity_logs', JSON.stringify(logs));
-  }, [logs]);
-
-  useEffect(() => {
-    localStorage.setItem('erp_charity_expenses', JSON.stringify(expenses));
-  }, [expenses]);
 
   useEffect(() => {
     if (isKitchenStandaloneShare && sharedKitchenId) {
@@ -267,85 +265,80 @@ export default function App() {
 
   const perms = getPermission(currentRole);
 
-  // Core functions to interact with database
-  const handleAddProduct = (newProd: Omit<Product, 'id'>) => {
+  // Core functions to interact with Supabase database
+  const handleAddProduct = async (newProd: Omit<Product, 'id'>) => {
     if (!perms.canManageStock && !isOwnerMode && !isKitchenStandaloneShare) {
-      alert("عذراً، لا تمتلك الصلاحية الكافية لإضافة منتجات. تم تجديد الدخول باسم 'مسؤول مخزن' أو 'مدير النظام' أولاً.");
+      alert("عذراً، لا تمتلك الصلاحية الكافية لإضافة منتجات.");
       return;
     }
-    const fullProd: Product = {
+    const prodToInsert = {
       ...newProd,
-      id: 'p-' + Date.now(),
       ...(isKitchenStandaloneShare && sharedKitchenId ? { kitchenId: sharedKitchenId } : {})
     };
-    setProducts([fullProd, ...products]);
+    const fullProd = await insertProduct(prodToInsert);
+    if (!fullProd) return;
+    setProducts(prev => [fullProd, ...prev]);
 
-    // Add movement log
     const userName = currentRole === 'مدير النظام' ? 'ياسمين الحربي' : 'خالد عبد الرحمن';
-    const log: InventoryLog = {
-      id: 'l-' + Date.now(),
-      productId: fullProd.id,
-      productName: fullProd.name,
-      type: 'إضافة',
-      quantity: fullProd.quantity,
-      unit: fullProd.unit,
-      date: new Date().toISOString().split('T')[0],
-      user: userName
-    };
-    setLogs([log, ...logs]);
+    await insertInventoryLog({
+      productId: fullProd.id, productName: fullProd.name, type: 'إضافة',
+      quantity: fullProd.quantity, unit: fullProd.unit,
+      date: new Date().toISOString().split('T')[0], user: userName
+    });
+    const newLogs = await fetchInventoryLogs();
+    setLogs(newLogs);
   };
 
-  const handleAddKitchen = (newKit: Omit<Kitchen, 'id' | 'currentMealsToday'>) => {
+  const handleAddKitchen = async (newKit: Omit<Kitchen, 'id' | 'currentMealsToday'>) => {
     if (!perms.canManageKitchens) {
       alert("عذراً، تسجيل تكية طعام جديدة يتطلب صلاحية 'مدير النظام'.");
       return;
     }
-    const fullKit: Kitchen = {
-      ...newKit,
-      id: 'k-' + Date.now(),
-      currentMealsToday: 0
-    };
-    setKitchens([fullKit, ...kitchens]);
+    const fullKit = await insertKitchen(newKit);
+    if (!fullKit) return;
+    setKitchens(prev => [fullKit, ...prev]);
   };
 
-  const handleRemoveKitchen = (id: string) => {
+  const handleRemoveKitchen = async (id: string) => {
     if (!perms.canManageKitchens) {
       alert("صلاحيات دورك الحالي تمنع حذف التكيات.");
       return;
     }
-    setKitchens(kitchens.filter(k => k.id !== id));
+    await deleteKitchen(id);
+    setKitchens(prev => prev.filter(k => k.id !== id));
   };
 
-  const handleUpdateKitchen = (updatedKit: Kitchen) => {
-    setKitchens(kitchens.map(k => k.id === updatedKit.id ? updatedKit : k));
+  const handleUpdateKitchen = async (updatedKit: Kitchen) => {
+    await updateKitchen(updatedKit);
+    setKitchens(prev => prev.map(k => k.id === updatedKit.id ? updatedKit : k));
   };
 
-  const handleUpdateProduct = (updatedProd: Product) => {
-    setProducts(products.map(p => p.id === updatedProd.id ? updatedProd : p));
+  const handleUpdateProduct = async (updatedProd: Product) => {
+    await updateProduct(updatedProd);
+    setProducts(prev => prev.map(p => p.id === updatedProd.id ? updatedProd : p));
   };
 
-  const handleAddEmployee = (newEmp: Omit<Employee, 'id'>) => {
+  const handleAddEmployee = async (newEmp: Omit<Employee, 'id'>) => {
     if (!perms.canManageUsers) {
       alert("صلاحيات 'مدير النظام' مطلوبة لتسجيل كادر موظفين.");
       return;
     }
-    const fullEmp: Employee = {
-      ...newEmp,
-      id: 'e-' + Date.now()
-    };
-    setMembers([fullEmp, ...members]);
+    const fullEmp = await insertEmployee(newEmp);
+    if (!fullEmp) return;
+    setMembers(prev => [fullEmp, ...prev]);
   };
 
-  const handleRemoveEmployee = (id: string) => {
+  const handleRemoveEmployee = async (id: string) => {
     if (!perms.canManageUsers) {
       alert("فقط 'مدير النظام' بإمكانه سحب ترخيص كادر.");
       return;
     }
-    setMembers(members.filter(e => e.id !== id));
+    await deleteEmployee(id);
+    setMembers(prev => prev.filter(e => e.id !== id));
   };
 
   // Auto deductive material request system
-  const handleAcceptRequest = (reqId: string) => {
+  const handleAcceptRequest = async (reqId: string) => {
     if (!perms.canApproveRequests) {
       alert("لا تملك الصلاحية للموافقة على طلبات تموين المواد.");
       return;
@@ -353,126 +346,90 @@ export default function App() {
 
     const request = requests.find(r => r.id === reqId);
     if (!request) return;
+    if (request.status !== 'قيد المراجعة') { alert("هذا الطلب معالَج مسبقاً."); return; }
 
-    if (request.status !== 'قيد المراجعة') {
-      alert("هذا الطلب معالَج مسبقاً.");
-      return;
-    }
-
-    // Verify raw ingredients are available in inventory first
+    // Verify stock availability
     let inventoryUnavailable = false;
     const nextProducts = products.map(p => {
       const matchItem = request.items.find(item => item.productId === p.id);
       if (matchItem) {
-        if (p.quantity < matchItem.quantity) {
-          inventoryUnavailable = true;
-          return p;
-        }
-        return {
-          ...p,
-          quantity: p.quantity - matchItem.quantity
-        };
+        if (p.quantity < matchItem.quantity) { inventoryUnavailable = true; return p; }
+        return { ...p, quantity: p.quantity - matchItem.quantity };
       }
       return p;
     });
 
     if (inventoryUnavailable) {
-      alert("تحذير تمويني: رصيد المادة في المخزن المركزي غير كافٍ للموافقة وصرف الكمية المطلوبة بالكامل!");
+      alert("تحذير تمويني: رصيد المادة في المخزن المركزي غير كافٍ للموافقة!");
       return;
     }
 
-    // Apply Deduction
+    // Update Supabase - the DB trigger handles inventory deduction automatically
+    await updateMaterialRequestStatus(reqId, 'مقبول');
+
+    // Update local state
     setProducts(nextProducts);
+    setRequests(prev => prev.map(r => r.id === reqId ? { ...r, status: 'مقبول' } : r));
 
-    // Update Status
-    setRequests(requests.map(r => r.id === reqId ? { ...r, status: 'مقبول' } : r));
+    // Refresh logs from DB (trigger may have inserted logs)
+    const newLogs = await fetchInventoryLogs();
+    setLogs(newLogs);
 
-    // Register Log details
-    const userName = currentRole === 'مدير النظام' ? 'ياسمين الحربي' : 'خالد عبد الرحمن';
+    // Boost kitchen meals
     const firstItem = request.items[0];
-    const log: InventoryLog = {
-      id: 'l-' + Date.now(),
-      productId: firstItem.productId,
-      productName: firstItem.name,
-      type: 'صرف',
-      quantity: firstItem.quantity,
-      unit: firstItem.unit,
-      destination: request.kitchenName,
-      date: new Date().toISOString().split('T')[0],
-      user: userName
-    };
-    setLogs([log, ...logs]);
+    const updatedKitchen = kitchens.find(k => k.id === request.kitchenId);
+    if (updatedKitchen) {
+      const newMeals = Math.min(updatedKitchen.dailyMealsGoal, updatedKitchen.currentMealsToday + Math.round(firstItem.quantity * 2.2));
+      const updated = { ...updatedKitchen, currentMealsToday: newMeals };
+      await updateKitchen(updated);
+      setKitchens(prev => prev.map(k => k.id === updated.id ? updated : k));
+    }
 
-    // Register active kitchen capacity improvement
-    setKitchens(kitchens.map(k => {
-      if (k.id === request.kitchenId) {
-        // Boost capacity achievement proportionally
-        return {
-          ...k,
-          currentMealsToday: Math.min(k.dailyMealsGoal, k.currentMealsToday + Math.round(firstItem.quantity * 2.2))
-        };
-      }
-      return k;
-    }));
-
-    alert(`تمت الموافقة بنجاح وصرف الحصة للمطبخ الميداني. تم ترحيل الخصم من مخازن المنظمة فوراً.`);
+    alert(`تمت الموافقة بنجاح وصرف الحصة للمطبخ الميداني.`);
   };
 
-  const handleDenyRequest = (reqId: string) => {
-    if (!perms.canApproveRequests) {
-      alert("لا تملك الصلاحية لرفض الطلبات.");
-      return;
-    }
-    setRequests(requests.map(r => r.id === reqId ? { ...r, status: 'مرفوض' } : r));
+  const handleDenyRequest = async (reqId: string) => {
+    if (!perms.canApproveRequests) { alert("لا تملك الصلاحية لرفض الطلبات."); return; }
+    await updateMaterialRequestStatus(reqId, 'مرفوض');
+    setRequests(prev => prev.map(r => r.id === reqId ? { ...r, status: 'مرفوض' } : r));
     alert("تم رفض طلب التموين المحدد وتنبيه التكية المانحة.");
   };
 
-  const handleCreateRequest = (newReq: Omit<MaterialRequest, 'id' | 'status' | 'date'>) => {
-    const fullReq: MaterialRequest = {
-      ...newReq,
-      id: 'req-' + Date.now(),
-      status: 'قيد المراجعة',
-      date: new Date().toISOString().split('T')[0]
-    };
-    setRequests([fullReq, ...requests]);
+  const handleCreateRequest = async (newReq: Omit<MaterialRequest, 'id' | 'status' | 'date'>) => {
+    const newId = await insertMaterialRequest(newReq);
+    if (!newId) return;
+    const updatedRequests = await fetchMaterialRequests(kitchens);
+    setRequests(updatedRequests);
     alert("تم تقديم طلب التموين بنجاح. أرسل الإخطار لأمين المستودع المركزي.");
   };
 
   // Register side expense
-  const handleAddExpense = (e: React.FormEvent) => {
+  const handleAddExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     const amountNum = Number(newExpenseAmount);
-    if (!amountNum || amountNum <= 0) {
-      alert("يرجى كتابة مبلغ مصروف صحيح أكبر من صفر.");
-      return;
-    }
-    if (!newExpenseReason.trim()) {
-      alert("يرجى كتابة ملاحظة أو تفاصيل صرف هذا المبلغ (صرف لماذا).");
-      return;
-    }
+    if (!amountNum || amountNum <= 0) { alert("يرجى كتابة مبلغ مصروف صحيح أكبر من صفر."); return; }
+    if (!newExpenseReason.trim()) { alert("يرجى كتابة ملاحظة أو تفاصيل صرف هذا المبلغ."); return; }
 
-    const newExp: SideExpense = {
-      id: 'exp-' + Date.now(),
-      amount: amountNum,
-      reason: newExpenseReason.trim(),
-      date: new Date().toISOString().split('T')[0],
-      category: newExpenseCategory
-    };
-
-    setExpenses([newExp, ...expenses]);
+    const newExp = await insertSideExpense({
+      amount: amountNum, reason: newExpenseReason.trim(),
+      date: new Date().toISOString().split('T')[0], category: newExpenseCategory,
+    });
+    if (!newExp) return;
+    setExpenses(prev => [newExp, ...prev]);
     setNewExpenseAmount('');
     setNewExpenseReason('');
-    alert("تم تسجيل المشتريات والمصروفات الجانبية بنجاح في سجل الحسابات النثرية.");
+    alert("تم تسجيل المصروفات الجانبية بنجاح في سجل الحسابات النثرية.");
   };
 
-  const handleDeleteExpense = (id: string) => {
+  const handleDeleteExpense = async (id: string) => {
     if (confirm("هل أنت متأكد من حذف هذا البند المصروف؟")) {
-      setExpenses(expenses.filter(e => e.id !== id));
+      await deleteSideExpense(id);
+      setExpenses(prev => prev.filter(e => e.id !== id));
     }
   };
 
   // Quick Manual Log Adjustment trigger
-  const handleAddLogTrigger = () => {
+  const handleAddLogTrigger = async () => {
     const prName = prompt("أدخل اسم المادة المراد تعديل رصيدها:");
     if (!prName) return;
     const prQty = prompt("أدخل كمية التعديل (مثال: 500 أو -300):");
@@ -483,33 +440,23 @@ export default function App() {
 
     const pType = numQty >= 0 ? 'إضافة' : 'صرف';
     const absoluteQty = Math.abs(numQty);
-
-    // Let's lookup product
     const pExist = products.find(p => p.name.includes(prName)) || products[0];
 
-    const log: InventoryLog = {
-      id: 'l-' + Date.now(),
-      productId: pExist.id,
-      productName: pExist.name,
-      type: pType,
-      quantity: absoluteQty,
-      unit: pExist.unit,
+    await insertInventoryLog({
+      productId: pExist?.id ?? '', productName: pExist?.name ?? prName,
+      type: pType, quantity: absoluteQty, unit: pExist?.unit ?? '',
       date: new Date().toISOString().split('T')[0],
       user: currentRole === 'مدير النظام' ? 'ياسمين الحربي' : 'خالد عبد الرحمن'
-    };
+    });
+    const newLogs = await fetchInventoryLogs();
+    setLogs(newLogs);
 
-    setLogs([log, ...logs]);
-
-    // Sync product qty
-    setProducts(products.map(p => {
-      if (p.id === pExist.id) {
-        return {
-          ...p,
-          quantity: Math.max(0, p.quantity + numQty)
-        };
-      }
-      return p;
-    }));
+    // Sync product qty locally
+    if (pExist) {
+      const updatedProd = { ...pExist, quantity: Math.max(0, pExist.quantity + numQty) };
+      await updateProduct(updatedProd);
+      setProducts(prev => prev.map(p => p.id === pExist.id ? updatedProd : p));
+    }
 
     alert("تم تسجيل حركة التعديل المخزني وتدقيق رصيد المادة.");
   };
@@ -991,6 +938,18 @@ export default function App() {
           product={editingProduct}
           onUpdate={handleUpdateProduct}
         />
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div dir="rtl" className="min-h-screen bg-[#f7f9f8] flex items-center justify-center font-sans">
+        <div className="text-center space-y-4">
+          <div className="w-16 h-16 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-slate-600 font-bold text-base">جاري تحميل البيانات من قاعدة البيانات...</p>
+          <p className="text-slate-400 font-medium text-xs">يتم الاتصال بـ Supabase</p>
+        </div>
       </div>
     );
   }
