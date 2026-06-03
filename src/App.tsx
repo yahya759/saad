@@ -995,6 +995,20 @@ export default function App() {
 
               {/* Action Buttons */}
               <div className="flex items-center gap-2.5">
+                {/* Refresh Button */}
+                <button
+                  onClick={async () => {
+                    await loadAllData();
+                  }}
+                  disabled={isLoading}
+                  title="تحديث البيانات من قاعدة البيانات"
+                  className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-xs py-2.5 px-4 rounded-xl cursor-pointer transition-all flex items-center gap-1.5 shadow-sm"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+                  <span>{isLoading ? 'جاري التحديث...' : 'تحديث البيانات'}</span>
+                </button>
+
+                {/* Export Button */}
                 <button
                   onClick={() => {
                     if (window.confirm("هل ترغب في تصدير تقرير التوزيع اليومي بصيغة Excel (محاكاة)؟")) {
