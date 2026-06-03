@@ -1,0 +1,6 @@
+{
+  "name": "سواعد الخير للإغاثة والتنمية",
+  "description": "منظومة إدارية متكاملة بـ RTL لإدارة لوجستيات التكيات والمستودع المركزي لجمعية سواعد الخير للإغاثة والتنمية لتقاسم الغذاء والمساعدات الخيرية.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
