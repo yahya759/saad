@@ -29,9 +29,14 @@ export const updateProduct = async (p: Product): Promise<void> => {
   if (error) console.error('updateProduct:', error);
 };
 
-export const deleteProduct = async (id: string): Promise<void> => {
+export const deleteProduct = async (id: string): Promise<boolean> => {
   const { error } = await supabase.from('products').delete().eq('id', id);
-  if (error) console.error('deleteProduct:', error);
+  if (error) {
+    console.error('deleteProduct:', error);
+    alert(`خطأ في حذف المنتج: ${error.message}`);
+    return false;
+  }
+  return true;
 };
 
 // ==================== KITCHENS ====================
@@ -62,9 +67,14 @@ export const updateKitchen = async (k: Kitchen): Promise<void> => {
   if (error) console.error('updateKitchen:', error);
 };
 
-export const deleteKitchen = async (id: string): Promise<void> => {
+export const deleteKitchen = async (id: string): Promise<boolean> => {
   const { error } = await supabase.from('kitchens').delete().eq('id', id);
-  if (error) console.error('deleteKitchen:', error);
+  if (error) {
+    console.error('deleteKitchen:', error);
+    alert(`خطأ في حذف التكية: ${error.message}`);
+    return false;
+  }
+  return true;
 };
 
 // ==================== EMPLOYEES ====================
@@ -87,9 +97,14 @@ export const insertEmployee = async (e: Omit<Employee, 'id'>): Promise<Employee 
     email: data.email ?? undefined, avatarSeed: data.avatar_seed, notes: [] };
 };
 
-export const deleteEmployee = async (id: string): Promise<void> => {
+export const deleteEmployee = async (id: string): Promise<boolean> => {
   const { error } = await supabase.from('employees').delete().eq('id', id);
-  if (error) console.error('deleteEmployee:', error);
+  if (error) {
+    console.error('deleteEmployee:', error);
+    alert(`خطأ في حذف الموظف: ${error.message}`);
+    return false;
+  }
+  return true;
 };
 
 export const upsertEmployeeNote = async (employeeId: string, noteId: string, text: string, date: string): Promise<void> => {
@@ -185,7 +200,12 @@ export const insertSideExpense = async (exp: Omit<SideExpense, 'id'>): Promise<S
   return { id: data.id, amount: data.amount, reason: data.reason, category: data.category, date: data.date };
 };
 
-export const deleteSideExpense = async (id: string): Promise<void> => {
+export const deleteSideExpense = async (id: string): Promise<boolean> => {
   const { error } = await supabase.from('side_expenses').delete().eq('id', id);
-  if (error) console.error('deleteSideExpense:', error);
+  if (error) {
+    console.error('deleteSideExpense:', error);
+    alert(`خطأ في حذف المصروف: ${error.message}`);
+    return false;
+  }
+  return true;
 };

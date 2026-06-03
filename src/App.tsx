@@ -304,8 +304,8 @@ export default function App() {
       alert("صلاحيات دورك الحالي تمنع حذف التكيات.");
       return;
     }
-    await deleteKitchen(id);
-    setKitchens(prev => prev.filter(k => k.id !== id));
+    const ok = await deleteKitchen(id);
+    if (ok) setKitchens(prev => prev.filter(k => k.id !== id));
   };
 
   const handleUpdateKitchen = async (updatedKit: Kitchen) => {
@@ -333,8 +333,8 @@ export default function App() {
       alert("فقط 'مدير النظام' بإمكانه سحب ترخيص كادر.");
       return;
     }
-    await deleteEmployee(id);
-    setMembers(prev => prev.filter(e => e.id !== id));
+    const ok = await deleteEmployee(id);
+    if (ok) setMembers(prev => prev.filter(e => e.id !== id));
   };
 
   // Auto deductive material request system
@@ -423,8 +423,8 @@ export default function App() {
 
   const handleDeleteExpense = async (id: string) => {
     if (confirm("هل أنت متأكد من حذف هذا البند المصروف؟")) {
-      await deleteSideExpense(id);
-      setExpenses(prev => prev.filter(e => e.id !== id));
+      const ok = await deleteSideExpense(id);
+      if (ok) setExpenses(prev => prev.filter(e => e.id !== id));
     }
   };
 
@@ -615,8 +615,8 @@ export default function App() {
                           onClick={async (e) => {
                             e.stopPropagation();
                             if (window.confirm(`هل ترغب في شطب صنف "${p.name}" نهائياً من مستودع التكية الميداني؟`)) {
-                              await deleteProduct(p.id);
-                              setProducts(prev => prev.filter(item => item.id !== p.id));
+                              const ok = await deleteProduct(p.id);
+                              if (ok) setProducts(prev => prev.filter(item => item.id !== p.id));
                             }
                           }}
                           className="w-8 h-8 rounded-full bg-slate-50 border border-slate-100 hover:border-rose-105 hover:bg-rose-50 text-slate-400 hover:text-rose-600 flex items-center justify-center transition-all cursor-pointer shadow-3xs"
@@ -1233,8 +1233,8 @@ export default function App() {
                                 return alert("ممنوع من الصرف: لا تملك صلاحية تعديل أو حذف بالمستودع المركزي.");
                               }
                               if (window.confirm(`هل ترغب في مسح صنف "${p.name}" بالكامل من الرصيد العام؟`)) {
-                                await deleteProduct(p.id);
-                                setProducts(prev => prev.filter(item => item.id !== p.id));
+                                const ok = await deleteProduct(p.id);
+                                if (ok) setProducts(prev => prev.filter(item => item.id !== p.id));
                               }
                             }}
                             className="w-8 h-8 rounded-full bg-slate-50 border border-slate-100 hover:border-rose-105 hover:bg-rose-50 text-slate-400 hover:text-rose-600 flex items-center justify-center transition-all cursor-pointer shadow-3xs"
