@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  fetchProducts, insertProduct, updateProduct,
+  fetchProducts, insertProduct, updateProduct, deleteProduct,
   fetchKitchens, insertKitchen, updateKitchen, deleteKitchen,
   fetchEmployees, insertEmployee, deleteEmployee, upsertEmployeeNote, deleteEmployeeNote,
   fetchMaterialRequests, insertMaterialRequest, updateMaterialRequestStatus,
@@ -612,10 +612,11 @@ export default function App() {
                         </div>
 
                         <div
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
                             if (window.confirm(`هل ترغب في شطب صنف "${p.name}" نهائياً من مستودع التكية الميداني؟`)) {
-                              setProducts(products.filter(item => item.id !== p.id));
+                              await deleteProduct(p.id);
+                              setProducts(prev => prev.filter(item => item.id !== p.id));
                             }
                           }}
                           className="w-8 h-8 rounded-full bg-slate-50 border border-slate-100 hover:border-rose-105 hover:bg-rose-50 text-slate-400 hover:text-rose-600 flex items-center justify-center transition-all cursor-pointer shadow-3xs"
@@ -1226,13 +1227,14 @@ export default function App() {
 
                           {/* Delete item button */}
                           <div
-                            onClick={(e) => {
-                              e.stopPropagation(); // Avoid card click
+                            onClick={async (e) => {
+                              e.stopPropagation();
                               if (!perms.canManageStock && !isOwnerMode) {
                                 return alert("ممنوع من الصرف: لا تملك صلاحية تعديل أو حذف بالمستودع المركزي.");
                               }
                               if (window.confirm(`هل ترغب في مسح صنف "${p.name}" بالكامل من الرصيد العام؟`)) {
-                                setProducts(products.filter(item => item.id !== p.id));
+                                await deleteProduct(p.id);
+                                setProducts(prev => prev.filter(item => item.id !== p.id));
                               }
                             }}
                             className="w-8 h-8 rounded-full bg-slate-50 border border-slate-100 hover:border-rose-105 hover:bg-rose-50 text-slate-400 hover:text-rose-600 flex items-center justify-center transition-all cursor-pointer shadow-3xs"
@@ -1362,10 +1364,10 @@ export default function App() {
                           <Link className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
                             if (window.confirm("هل أنت متأكد من رغبتك في حذف هذه التكية؟")) {
-                              handleRemoveKitchen(kitchen.id);
+                              await handleRemoveKitchen(kitchen.id);
                             }
                           }}
                           className="w-7 h-7 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center border border-rose-100 transition-colors cursor-pointer"
@@ -1789,13 +1791,13 @@ export default function App() {
 
                           <div className="col-span-1 text-center">
                             <button
-                              onClick={() => {
+                              onClick={async () => {
                                 if (!perms.canManageUsers) return alert("صلاحيات 'مدير النظام' مطلوبة لتسجيل كادر موظفين.");
                                 if (window.confirm(`هل أنت متأكد من تفكيك اعتماد الكادر ${member.name}؟`)) {
-                                  setMembers(members.filter(m => m.id !== member.id));
+                                  await deleteEmployee(member.id);
+                                  setMembers(prev => prev.filter(m => m.id !== member.id));
                                 }
                               }}
-                              className="text-slate-350 hover:text-rose-600 p-1 rounded-md"
                             >
                               <Trash2 className="w-4 h-4 mx-auto cursor-pointer" />
                             </button>
@@ -1813,10 +1815,11 @@ export default function App() {
                             </div>
                             
                             <button
-                              onClick={() => {
+                              onClick={async () => {
                                 if (!perms.canManageUsers) return alert("صلاحيات 'مدير النظام' مطلوبة لتسجيل كادر موظفين.");
                                 if (window.confirm(`هل أنت متأكد من تفكيك اعتماد الكادر ${member.name}؟`)) {
-                                  setMembers(members.filter(m => m.id !== member.id));
+                                  await deleteEmployee(member.id);
+                                  setMembers(prev => prev.filter(m => m.id !== member.id));
                                 }
                               }}
                               className="text-slate-400 hover:text-rose-600 p-1 rounded-lg border border-slate-150 hover:bg-rose-50"
