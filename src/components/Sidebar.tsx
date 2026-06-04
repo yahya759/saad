@@ -9,6 +9,7 @@ import {
   Package,
   LayoutDashboard,
   Coins,
+  Inbox,
   X
 } from 'lucide-react';
 
@@ -16,6 +17,7 @@ interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   pendingRequestsCount: number;
+  internalRequestsCount?: number;
   isOpen?: boolean;
   onClose?: () => void;
 }
@@ -24,17 +26,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeTab, 
   setActiveTab, 
   pendingRequestsCount,
+  internalRequestsCount = 0,
   isOpen = false,
   onClose
 }) => {
   const menuItems = [
-    { id: 'dashboard', label: 'الرئيسية', icon: LayoutDashboard, badge: null },
-    { id: 'inventory', label: 'المخزون المركزي', icon: Package, badge: null },
-    { id: 'kitchens', label: 'إدارة التكيات', icon: CookingPot, badge: null },
-    { id: 'requests', label: 'طلبات التموين', icon: ClipboardList, badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null },
-    { id: 'expenses', label: 'المصروفات الجانبية', icon: Coins, badge: null },
-    { id: 'employees', label: 'إدارة الموظفين', icon: Users, badge: null },
-    { id: 'reports', label: 'التقارير والإحصاء', icon: BarChart3, badge: null },
+    { id: 'dashboard',          label: 'الرئيسية',           icon: LayoutDashboard, badge: null },
+    { id: 'inventory',          label: 'المخزون المركزي',     icon: Package,         badge: null },
+    { id: 'kitchens',           label: 'إدارة التكيات',       icon: CookingPot,      badge: null },
+    { id: 'requests',           label: 'طلبات التموين',       icon: ClipboardList,   badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null },
+    { id: 'internal-requests',  label: 'الطلبات الداخلية',    icon: Inbox,           badge: internalRequestsCount > 0 ? `${internalRequestsCount}` : null },
+    { id: 'expenses',           label: 'المصروفات الجانبية',  icon: Coins,           badge: null },
+    { id: 'employees',          label: 'إدارة الموظفين',      icon: Users,           badge: null },
+    { id: 'reports',            label: 'التقارير والإحصاء',   icon: BarChart3,       badge: null },
   ];
 
   const generalItems = [

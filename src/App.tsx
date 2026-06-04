@@ -6,6 +6,7 @@ import {
   fetchMaterialRequests, insertMaterialRequest, updateMaterialRequestStatus,
   fetchInventoryLogs, insertInventoryLog,
   fetchSideExpenses, insertSideExpense, deleteSideExpense,
+  fetchInternalRequests,
 } from './lib/supabaseService';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
@@ -13,6 +14,8 @@ import { MetricCards } from './components/MetricCards';
 import { ChartsAndReminders } from './components/ChartsAndReminders';
 import { BottomGrid } from './components/BottomGrid';
 import { RightPanel } from './components/RightPanel';
+import { InternalRequestsPage } from './components/InternalRequestsPage';
+import { InternalRequestForm } from './components/InternalRequestForm';
 import { 
   AddProductModal, 
   EditProductModal,
@@ -29,7 +32,8 @@ import {
   SideExpense, 
   Employee, 
   EmployeeRole, 
-  InventoryLog 
+  InventoryLog,
+  InternalRequest,
 } from './types';
 import { 
   Package, 
@@ -141,24 +145,30 @@ export default function App() {
   const [members, setMembers] = useState<Employee[]>([]);
   const [logs, setLogs] = useState<InventoryLog[]>([]);
   const [expenses, setExpenses] = useState<SideExpense[]>([]);
+  const [internalRequests, setInternalRequests] = useState<InternalRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Check if opened via public form link
+  const isFormView = new URLSearchParams(window.location.search).get('form') === 'internal-request';
 
   // Load all data from Supabase on mount
   const loadAllData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [prods, kits, emps, invLogs, exps] = await Promise.all([
+      const [prods, kits, emps, invLogs, exps, intReqs] = await Promise.all([
         fetchProducts(),
         fetchKitchens(),
         fetchEmployees(),
         fetchInventoryLogs(),
         fetchSideExpenses(),
+        fetchInternalRequests(),
       ]);
       setProducts(prods);
       setKitchens(kits);
       setMembers(emps);
       setLogs(invLogs);
       setExpenses(exps);
+      setInternalRequests(intReqs);
       // Load requests after kitchens are ready
       const reqs = await fetchMaterialRequests(kits);
       setRequests(reqs);
@@ -943,6 +953,11 @@ export default function App() {
     );
   }
 
+  // Show public form if ?form=internal-request in URL
+  if (isFormView) {
+    return <InternalRequestForm onClose={() => window.history.back()} />;
+  }
+
   if (isLoading) {
     return (
       <div dir="rtl" className="min-h-screen bg-[#f7f9f8] flex items-center justify-center font-sans">
@@ -963,6 +978,7 @@ export default function App() {
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
         pendingRequestsCount={pendingCount}
+        internalRequestsCount={internalRequests.filter(r => r.status === 'قيد المراجعة').length}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
       />
@@ -1902,6 +1918,11 @@ export default function App() {
               </button>
             </div>
           </div>
+        ) : activeTab === 'internal-requests' ? (
+          <InternalRequestsPage
+            requests={internalRequests}
+            setRequests={setInternalRequests}
+          />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center p-8 bg-white border border-slate-100 rounded-2.5xl my-4 text-center">
             <span className="text-4xl">⚙️</span>

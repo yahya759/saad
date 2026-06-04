@@ -183,7 +183,44 @@ export const insertInventoryLog = async (log: Omit<InventoryLog, 'id'>): Promise
   if (error) console.error('insertInventoryLog:', error);
 };
 
-// ==================== SIDE EXPENSES ====================
+// ==================== INTERNAL REQUESTS ====================
+import { InternalRequest } from '../types';
+
+export const fetchInternalRequests = async (): Promise<InternalRequest[]> => {
+  const { data, error } = await supabase.from('internal_requests').select('*').order('created_at', { ascending: false });
+  if (error) { console.error('fetchInternalRequests:', error); return []; }
+  return data.map(d => ({
+    id: d.id, requesterName: d.requester_name, requesterDepartment: d.requester_department,
+    requestType: d.request_type, description: d.description, priority: d.priority,
+    status: d.status, rejectionReason: d.rejection_reason ?? undefined, createdAt: d.created_at,
+  }));
+};
+
+export const insertInternalRequest = async (r: Omit<InternalRequest, 'id' | 'status' | 'createdAt' | 'rejectionReason'>): Promise<InternalRequest | null> => {
+  const { data, error } = await supabase.from('internal_requests').insert({
+    requester_name: r.requesterName, requester_department: r.requesterDepartment,
+    request_type: r.requestType, description: r.description, priority: r.priority,
+    status: 'قيد المراجعة',
+  }).select().single();
+  if (error) { console.error('insertInternalRequest:', error); alert(`خطأ: ${error.message}`); return null; }
+  return { id: data.id, requesterName: data.requester_name, requesterDepartment: data.requester_department,
+    requestType: data.request_type, description: data.description, priority: data.priority,
+    status: data.status, createdAt: data.created_at };
+};
+
+export const updateInternalRequestStatus = async (id: string, status: InternalRequest['status'], rejectionReason?: string): Promise<boolean> => {
+  const { error } = await supabase.from('internal_requests').update({
+    status, rejection_reason: rejectionReason ?? null,
+  }).eq('id', id);
+  if (error) { console.error('updateInternalRequestStatus:', error); alert(`خطأ: ${error.message}`); return false; }
+  return true;
+};
+
+export const deleteInternalRequest = async (id: string): Promise<boolean> => {
+  const { error } = await supabase.from('internal_requests').delete().eq('id', id);
+  if (error) { console.error('deleteInternalRequest:', error); alert(`خطأ في الحذف: ${error.message}`); return false; }
+  return true;
+};
 export const fetchSideExpenses = async (): Promise<SideExpense[]> => {
   const { data, error } = await supabase.from('side_expenses').select('*').order('created_at', { ascending: false });
   if (error) { console.error('fetchSideExpenses:', error); return []; }

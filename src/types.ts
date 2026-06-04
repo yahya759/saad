@@ -93,3 +93,19 @@ export interface SideExpense {
   category?: string;
 }
 
+export type InternalRequestType = 'طلب مستلزمات' | 'طلب صيانة' | 'طلب نقل' | 'طلب خدمة' | 'طلب إجازة' | 'أخرى';
+export type InternalRequestPriority = 'عاجل' | 'عادي' | 'منخفض';
+export type InternalRequestStatus = 'قيد المراجعة' | 'مقبول' | 'مرفوض';
+
+export interface InternalRequest {
+  id: string;
+  requesterName: string;
+  requesterDepartment: string;
+  requestType: InternalRequestType;
+  description: string;
+  priority: InternalRequestPriority;
+  status: InternalRequestStatus;
+  rejectionReason?: string;
+  createdAt: string;
+}
+
