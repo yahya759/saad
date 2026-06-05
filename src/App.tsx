@@ -7,6 +7,7 @@ import {
   fetchInventoryLogs, insertInventoryLog,
   fetchSideExpenses, insertSideExpense, deleteSideExpense,
   fetchInternalRequests,
+  fetchMealDistributions,
 } from './lib/supabaseService';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
@@ -16,6 +17,7 @@ import { BottomGrid } from './components/BottomGrid';
 import { RightPanel } from './components/RightPanel';
 import { InternalRequestsPage } from './components/InternalRequestsPage';
 import { InternalRequestForm } from './components/InternalRequestForm';
+import { MealDistributionLog } from './components/MealDistributionLog';
 import { 
   AddProductModal, 
   EditProductModal,
@@ -34,6 +36,7 @@ import {
   EmployeeRole, 
   InventoryLog,
   InternalRequest,
+  MealDistribution,
 } from './types';
 import { 
   Package, 
@@ -146,6 +149,7 @@ export default function App() {
   const [logs, setLogs] = useState<InventoryLog[]>([]);
   const [expenses, setExpenses] = useState<SideExpense[]>([]);
   const [internalRequests, setInternalRequests] = useState<InternalRequest[]>([]);
+  const [mealDistributions, setMealDistributions] = useState<MealDistribution[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Check if opened via public form link
@@ -155,13 +159,14 @@ export default function App() {
   const loadAllData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [prods, kits, emps, invLogs, exps, intReqs] = await Promise.all([
+      const [prods, kits, emps, invLogs, exps, intReqs, mealDists] = await Promise.all([
         fetchProducts(),
         fetchKitchens(),
         fetchEmployees(),
         fetchInventoryLogs(),
         fetchSideExpenses(),
         fetchInternalRequests(),
+        fetchMealDistributions(),
       ]);
       setProducts(prods);
       setKitchens(kits);
@@ -169,6 +174,7 @@ export default function App() {
       setLogs(invLogs);
       setExpenses(exps);
       setInternalRequests(intReqs);
+      setMealDistributions(mealDists);
       // Load requests after kitchens are ready
       const reqs = await fetchMaterialRequests(kits);
       setRequests(reqs);
@@ -1067,7 +1073,7 @@ export default function App() {
                   totalInventoryCount={products.length} 
                   activeKitchensCount={kitchens.length} 
                   pendingRequestsCount={pendingCount} 
-                  mealsDistributedCount={mealsSumToday + 4000} // base matching historical value
+                  mealsDistributedCount={mealDistributions.reduce((s, d) => s + d.mealsCount, 0)}
                   onCardClick={(id) => {
                     if (id === 'pendingRequests') setActiveTab('requests');
                     if (id === 'inventoryStore') setActiveTab('inventory');
@@ -1078,7 +1084,10 @@ export default function App() {
                 {/* Main weekly meal chart and central adjustment logs */}
                 <ChartsAndReminders 
                   logs={logs} 
-                  onAddLog={handleAddLogTrigger} 
+                  onAddLog={handleAddLogTrigger}
+                  mealDistributions={mealDistributions}
+                  setMealDistributions={setMealDistributions}
+                  kitchens={kitchens}
                 />
 
                 {/* Active kitchen staff list and daily target semi-circular graphic */}

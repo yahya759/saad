@@ -183,6 +183,37 @@ export const insertInventoryLog = async (log: Omit<InventoryLog, 'id'>): Promise
   if (error) console.error('insertInventoryLog:', error);
 };
 
+// ==================== MEAL DISTRIBUTIONS ====================
+import { MealDistribution } from '../types';
+
+export const fetchMealDistributions = async (): Promise<MealDistribution[]> => {
+  const { data, error } = await supabase.from('meal_distributions').select('*').order('created_at', { ascending: false });
+  if (error) { console.error('fetchMealDistributions:', error); return []; }
+  return data.map(d => ({
+    id: d.id, kitchenId: d.kitchen_id, kitchenName: d.kitchen_name,
+    mealsCount: d.meals_count, area: d.area, notes: d.notes ?? undefined,
+    distributionDate: d.distribution_date, createdAt: d.created_at,
+  }));
+};
+
+export const insertMealDistribution = async (d: Omit<MealDistribution, 'id' | 'createdAt'>): Promise<MealDistribution | null> => {
+  const { data, error } = await supabase.from('meal_distributions').insert({
+    kitchen_id: d.kitchenId, kitchen_name: d.kitchenName,
+    meals_count: d.mealsCount, area: d.area,
+    notes: d.notes ?? null, distribution_date: d.distributionDate,
+  }).select().single();
+  if (error) { console.error('insertMealDistribution:', error); alert(`خطأ: ${error.message}`); return null; }
+  return { id: data.id, kitchenId: data.kitchen_id, kitchenName: data.kitchen_name,
+    mealsCount: data.meals_count, area: data.area, notes: data.notes ?? undefined,
+    distributionDate: data.distribution_date, createdAt: data.created_at };
+};
+
+export const deleteMealDistribution = async (id: string): Promise<boolean> => {
+  const { error } = await supabase.from('meal_distributions').delete().eq('id', id);
+  if (error) { console.error('deleteMealDistribution:', error); alert(`خطأ: ${error.message}`); return false; }
+  return true;
+};
+
 // ==================== INTERNAL REQUESTS ====================
 import { InternalRequest } from '../types';
 

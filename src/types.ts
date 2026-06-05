@@ -40,10 +40,11 @@ export interface MealDistribution {
   id: string;
   kitchenId: string;
   kitchenName: string;
-  mealsDistributed: number;
-  targetArea: string;
-  date: string;
-  driverName: string;
+  mealsCount: number;
+  area: string;
+  notes?: string;
+  distributionDate: string;
+  createdAt: string;
 }
 
 export type EmployeeRole = 'مدير النظام' | 'مسؤول مخزن' | 'مسؤول تكية' | 'موظف توزيع' | 'سائق' | 'طباخ';
@@ -91,6 +92,17 @@ export interface SideExpense {
   reason: string;
   date: string;
   category?: string;
+}
+
+export interface MealDistribution {
+  id: string;
+  kitchenId: string;
+  kitchenName: string;
+  mealsCount: number;
+  area: string;
+  notes?: string;
+  distributionDate: string;
+  createdAt: string;
 }
 
 export type InternalRequestType = 'طلب مستلزمات' | 'طلب صيانة' | 'طلب نقل' | 'طلب خدمة' | 'طلب إجازة' | 'أخرى';
