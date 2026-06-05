@@ -481,6 +481,30 @@ export default function App() {
   const totalInStockKg = products.filter(p => p.category !== 'تشغيل وطاقة').reduce((sum, p) => sum + p.quantity, 0);
   const pendingCount = requests.filter(r => r.status === 'قيد المراجعة').length;
   const mealsSumToday = kitchens.reduce((sum, k) => sum + k.currentMealsToday, 0);
+
+  // Helper: dialog-based quantity adjustment for product cards
+  const handleQuantityAdjust = async (p: Product, type: 'إضافة' | 'صرف') => {
+    const label = type === 'إضافة' ? 'إضافة' : 'خصم';
+    const input = window.prompt(
+      `${label} كمية من "${p.name}"\nالرصيد الحالي: ${p.quantity} ${p.unit}\n\nأدخل الكمية المراد ${type === 'إضافة' ? 'إضافتها' : 'خصمها'}:`
+    );
+    if (!input) return;
+    const val = parseFloat(input.trim());
+    if (isNaN(val) || val <= 0) { alert('أدخل رقماً صحيحاً أكبر من صفر'); return; }
+    if (type === 'صرف' && val > p.quantity) {
+      alert(`لا يمكن الخصم! الكمية (${val}) أكبر من الرصيد (${p.quantity} ${p.unit})`);
+      return;
+    }
+    const newQty = type === 'إضافة' ? p.quantity + val : Math.max(0, p.quantity - val);
+    await handleUpdateProduct({ ...p, quantity: newQty });
+    await insertInventoryLog({
+      productId: p.id, productName: p.name, type,
+      quantity: val, unit: p.unit,
+      date: new Date().toISOString().split('T')[0], user: currentRole,
+    });
+    const newLogs = await fetchInventoryLogs();
+    setLogs(newLogs);
+  };
   const lowStockQuantity = products.filter(p => p.quantity <= p.lowStockAlertLimit).length;
 
   // Search logic for materials central tab or similar
@@ -660,14 +684,9 @@ export default function App() {
                           
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const step = p.unit === 'طن' ? 1 : p.unit === 'كرتونة' ? 5 : 50;
-                                const newQty = Math.max(0, p.quantity - step);
-                                handleUpdateProduct({ ...p, quantity: newQty });
-                              }}
-                              className="w-6.5 h-6.5 rounded-lg bg-slate-55 hover:bg-rose-50 text-slate-500 hover:text-rose-600 font-black flex items-center justify-center border border-slate-200 hover:border-rose-100 transition-all text-[11px] cursor-pointer shadow-3xs"
-                              title={`طرح ${p.unit === 'طن' ? 1 : p.unit === 'كرتونة' ? 5 : 50}`}
+                              onClick={(e) => { e.stopPropagation(); handleQuantityAdjust(p, 'صرف'); }}
+                              className="w-6.5 h-6.5 rounded-lg bg-slate-55 hover:bg-rose-50 text-slate-500 hover:text-rose-600 font-black flex items-center justify-center border border-slate-200 hover:border-rose-100 transition-all cursor-pointer shadow-3xs"
+                              title="خصم كمية"
                             >
                               <Minus className="w-3 h-3" />
                             </button>
@@ -677,14 +696,9 @@ export default function App() {
                             </span>
 
                             <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const step = p.unit === 'طن' ? 1 : p.unit === 'كرتونة' ? 5 : 50;
-                                const newQty = p.quantity + step;
-                                handleUpdateProduct({ ...p, quantity: newQty });
-                              }}
-                              className="w-6.5 h-6.5 rounded-lg bg-slate-55 hover:bg-emerald-50 text-slate-500 hover:text-emerald-700 font-black flex items-center justify-center border border-slate-200 hover:border-emerald-100 transition-all text-[11px] cursor-pointer shadow-3xs"
-                              title={`إضافة ${p.unit === 'طن' ? 1 : p.unit === 'كرتونة' ? 5 : 50}`}
+                              onClick={(e) => { e.stopPropagation(); handleQuantityAdjust(p, 'إضافة'); }}
+                              className="w-6.5 h-6.5 rounded-lg bg-slate-55 hover:bg-emerald-50 text-slate-500 hover:text-emerald-700 font-black flex items-center justify-center border border-slate-200 hover:border-emerald-100 transition-all cursor-pointer shadow-3xs"
+                              title="إضافة كمية"
                             >
                               <Plus className="w-3 h-3" />
                             </button>
@@ -885,14 +899,9 @@ export default function App() {
                           
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const step = p.unit === 'طن' ? 1 : p.unit === 'كرتونة' ? 5 : 50;
-                                const newQty = Math.max(0, p.quantity - step);
-                                handleUpdateProduct({ ...p, quantity: newQty });
-                              }}
-                              className="w-6.5 h-6.5 rounded-lg bg-slate-55 hover:bg-rose-50 text-slate-500 hover:text-rose-600 font-black flex items-center justify-center border border-slate-200 hover:border-rose-100 transition-all text-[11px] cursor-pointer shadow-3xs"
-                              title={`طرح ${p.unit === 'طن' ? 1 : p.unit === 'كرتونة' ? 5 : 50}`}
+                              onClick={(e) => { e.stopPropagation(); handleQuantityAdjust(p, 'صرف'); }}
+                              className="w-6.5 h-6.5 rounded-lg bg-slate-55 hover:bg-rose-50 text-slate-500 hover:text-rose-600 font-black flex items-center justify-center border border-slate-200 hover:border-rose-100 transition-all cursor-pointer shadow-3xs"
+                              title="خصم كمية"
                             >
                               <Minus className="w-3 h-3" />
                             </button>
@@ -902,14 +911,9 @@ export default function App() {
                             </span>
 
                             <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const step = p.unit === 'طن' ? 1 : p.unit === 'كرتونة' ? 5 : 50;
-                                const newQty = p.quantity + step;
-                                handleUpdateProduct({ ...p, quantity: newQty });
-                              }}
-                              className="w-6.5 h-6.5 rounded-lg bg-slate-55 hover:bg-emerald-50 text-slate-500 hover:text-emerald-700 font-black flex items-center justify-center border border-slate-200 hover:border-emerald-100 transition-all text-[11px] cursor-pointer shadow-3xs"
-                              title={`إضافة ${p.unit === 'طن' ? 1 : p.unit === 'كرتونة' ? 5 : 50}`}
+                              onClick={(e) => { e.stopPropagation(); handleQuantityAdjust(p, 'إضافة'); }}
+                              className="w-6.5 h-6.5 rounded-lg bg-slate-55 hover:bg-emerald-50 text-slate-500 hover:text-emerald-700 font-black flex items-center justify-center border border-slate-200 hover:border-emerald-100 transition-all cursor-pointer shadow-3xs"
+                              title="إضافة كمية"
                             >
                               <Plus className="w-3 h-3" />
                             </button>
@@ -1291,14 +1295,9 @@ export default function App() {
                             {/* Stepper buttons to increment or decrement quantity easily */}
                             <div className="flex items-center gap-2">
                               <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const step = p.unit === 'طن' ? 1 : p.unit === 'كرتونة' ? 5 : 50;
-                                  const newQty = Math.max(0, p.quantity - step);
-                                  handleUpdateProduct({ ...p, quantity: newQty });
-                                }}
-                                className="w-6.5 h-6.5 rounded-lg bg-slate-55 hover:bg-rose-50 text-slate-500 hover:text-rose-600 font-black flex items-center justify-center border border-slate-200 hover:border-rose-100 transition-all text-[11px] cursor-pointer shadow-3xs"
-                                title={`طرح ${p.unit === 'طن' ? 1 : p.unit === 'كرتونة' ? 5 : 50}`}
+                                onClick={(e) => { e.stopPropagation(); handleQuantityAdjust(p, 'صرف'); }}
+                                className="w-6.5 h-6.5 rounded-lg bg-slate-55 hover:bg-rose-50 text-slate-500 hover:text-rose-600 font-black flex items-center justify-center border border-slate-200 hover:border-rose-100 transition-all cursor-pointer shadow-3xs"
+                                title="خصم كمية"
                               >
                                 <Minus className="w-3 h-3" />
                               </button>
@@ -1308,14 +1307,9 @@ export default function App() {
                               </span>
 
                               <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const step = p.unit === 'طن' ? 1 : p.unit === 'كرتونة' ? 5 : 50;
-                                  const newQty = p.quantity + step;
-                                  handleUpdateProduct({ ...p, quantity: newQty });
-                                }}
-                                className="w-6.5 h-6.5 rounded-lg bg-slate-55 hover:bg-emerald-50 text-slate-500 hover:text-emerald-700 font-black flex items-center justify-center border border-slate-200 hover:border-emerald-100 transition-all text-[11px] cursor-pointer shadow-3xs"
-                                title={`إضافة ${p.unit === 'طن' ? 1 : p.unit === 'كرتونة' ? 5 : 50}`}
+                                onClick={(e) => { e.stopPropagation(); handleQuantityAdjust(p, 'إضافة'); }}
+                                className="w-6.5 h-6.5 rounded-lg bg-slate-55 hover:bg-emerald-50 text-slate-500 hover:text-emerald-700 font-black flex items-center justify-center border border-slate-200 hover:border-emerald-100 transition-all cursor-pointer shadow-3xs"
+                                title="إضافة كمية"
                               >
                                 <Plus className="w-3 h-3" />
                               </button>
