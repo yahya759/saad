@@ -1426,88 +1426,136 @@ export default function App() {
             </div>
           </div>
         ) : activeTab === 'requests' ? (
-          // MATERIAL REQUESTS APPROVAL TABS
-          <div className="animate-fade-in mt-2 space-y-4" dir="rtl">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-205">
+          <div className="animate-fade-in mt-2 space-y-5" dir="rtl">
+
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <div>
                 <h2 className="text-lg font-black text-slate-800">إدارة طلبات التموين والموافقات المخزنية</h2>
-                <p className="text-[11px] text-slate-400 font-bold">تلقي ومراجعة الطلبات الموجهة من التكيات الميدانية إلى المستودع المركزي. الموافقة تخصم المواد تلقائياً وتغذي التكيات.</p>
+                <p className="text-[11px] text-slate-400 font-bold">تلقي ومراجعة الطلبات الموجهة من التكيات الميدانية إلى المستودع المركزي.</p>
               </div>
               <button
                 onClick={() => setIsRequestModalOpen(true)}
-                className="bg-emerald-800 hover:bg-emerald-950 text-white font-extrabold text-xs py-2 px-3.5 rounded-xl cursor-pointer flex items-center gap-1.5 transition-all"
+                className="bg-emerald-800 hover:bg-emerald-950 text-white font-extrabold text-xs py-2 px-3.5 rounded-xl cursor-pointer flex items-center gap-1.5 transition-all shadow-sm"
               >
                 <Plus className="w-4 h-4" />
                 <span>إنشاء طلب تموين يدوي</span>
               </button>
             </div>
 
-            <div className="space-y-4">
+            {/* Stats row */}
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: 'قيد المراجعة', count: requests.filter(r => r.status === 'قيد المراجعة').length, color: 'text-amber-600', bg: 'bg-amber-50 border-amber-200' },
+                { label: 'مقبولة',        count: requests.filter(r => r.status === 'مقبول').length,         color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
+                { label: 'مرفوضة',        count: requests.filter(r => r.status === 'مرفوض').length,         color: 'text-rose-600',    bg: 'bg-rose-50 border-rose-200' },
+              ].map(s => (
+                <div key={s.label} className={`${s.bg} border rounded-2xl p-3 text-center`}>
+                  <p className={`text-2xl font-black ${s.color}`}>{s.count}</p>
+                  <p className="text-xs text-slate-500 font-bold mt-0.5">{s.label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Request Cards */}
+            <div className="space-y-3">
               {requests.map(req => {
-                const isPending = req.status === 'قيد المراجعة';
+                const isPending  = req.status === 'قيد المراجعة';
                 const isApproved = req.status === 'مقبول';
+                const isRejected = req.status === 'مرفوض';
                 return (
-                  <div key={req.id} className="bg-white border border-slate-202 rounded-2.5xl p-5 shadow-3xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-                    <div className="space-y-2 text-right">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-extrabold text-emerald-850 px-2 py-0.5 rounded bg-emerald-50 text-[10px]">{req.id}</span>
-                        <span className="text-[10px] text-slate-400 font-bold">{req.date}</span>
-                        <span className={`text-[9.5px] font-black px-2 py-0.5 rounded-md ${
-                          isPending 
-                            ? 'bg-amber-100 text-amber-800' 
-                            : isApproved 
-                              ? 'bg-emerald-100 text-emerald-800' 
-                              : 'bg-rose-100 text-rose-800'
-                        }`}>
-                          {req.status}
-                        </span>
-                      </div>
+                  <div
+                    key={req.id}
+                    className={`relative bg-white rounded-2xl shadow-xs overflow-hidden border transition-all ${
+                      isPending  ? 'border-amber-200 hover:shadow-md hover:border-amber-300' :
+                      isApproved ? 'border-emerald-200' :
+                                   'border-rose-100'
+                    }`}
+                  >
+                    {/* Colored left accent bar */}
+                    <div className={`absolute right-0 top-0 bottom-0 w-1 rounded-r-2xl ${
+                      isPending  ? 'bg-amber-400' :
+                      isApproved ? 'bg-emerald-500' :
+                                   'bg-rose-400'
+                    }`} />
 
-                      <h3 className="font-black text-slate-800 text-[14px] leading-tight">
-                        جهة الطلب: <span className="text-emerald-900 font-black">{req.kitchenName}</span>
-                      </h3>
+                    <div className="pr-4 pl-4 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
 
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        {req.items.map((item, id) => (
-                          <span key={id} className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-150 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-650">
-                            <strong>{item.name}</strong> - المطلوبة: <span className="text-emerald-800 font-extrabold font-sans">{item.quantity} {item.unit}</span>
+                      {/* Left: info */}
+                      <div className="space-y-2.5 flex-1 text-right min-w-0">
+
+                        {/* Top meta row */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {/* Status badge */}
+                          <span className={`inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-lg border ${
+                            isPending  ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                            isApproved ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                         'bg-rose-50 text-rose-700 border-rose-200'
+                          }`}>
+                            {isPending  ? '⏳' : isApproved ? '✅' : '❌'}
+                            {req.status}
                           </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Operational Approvals */}
-                    <div className="flex items-center gap-2.5 justify-end">
-                      {isPending ? (
-                        <>
-                          <button
-                            onClick={() => handleAcceptRequest(req.id)}
-                            className="bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs py-2 px-3 rounded-xl flex items-center gap-1 cursor-pointer transition-colors"
-                          >
-                            <Check className="w-4 h-4" />
-                            <span>قبول وصرف المطبخ</span>
-                          </button>
-                          <button
-                            onClick={() => handleDenyRequest(req.id)}
-                            className="bg-white hover:bg-rose-50 border border-slate-200 text-rose-600 font-extrabold text-xs py-2 px-3 rounded-xl flex items-center gap-1 cursor-pointer transition-colors"
-                          >
-                            <XIcon className="w-4 h-4" />
-                            <span>رفض</span>
-                          </button>
-                        </>
-                      ) : (
-                        <div className="p-2 text-slate-400 text-xs font-bold flex items-center gap-1 bg-slate-50 rounded-xl px-4 border border-slate-200/50">
-                          <Info className="w-3.5 h-3.5 text-slate-500" />
-                          <span>تم معالجة الطلب وإغلاقه</span>
+                          {/* Date */}
+                          <span className="text-[10px] text-slate-400 font-bold bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg">
+                            📅 {req.date}
+                          </span>
+                          {/* ID — truncated */}
+                          <span className="text-[9px] text-slate-300 font-mono hidden md:inline truncate max-w-[140px]">
+                            #{req.id.slice(0, 8)}...
+                          </span>
                         </div>
-                      )}
+
+                        {/* Kitchen name */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] text-slate-400 font-bold">جهة الطلب:</span>
+                          <span className="font-black text-slate-800 text-sm">{req.kitchenName}</span>
+                        </div>
+
+                        {/* Items chips */}
+                        <div className="flex flex-wrap gap-2">
+                          {req.items.map((item, i) => (
+                            <span key={i} className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 shadow-xs">
+                              <span className="text-slate-500">{item.name}</span>
+                              <span className="w-px h-3 bg-slate-300" />
+                              <span className="text-emerald-700 font-extrabold font-sans">{item.quantity} {item.unit}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Right: actions */}
+                      <div className="flex items-center gap-2 justify-end shrink-0">
+                        {isPending ? (
+                          <>
+                            <button
+                              onClick={() => handleAcceptRequest(req.id)}
+                              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2.5 px-4 rounded-xl cursor-pointer transition-all shadow-sm hover:shadow-md"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              قبول وصرف
+                            </button>
+                            <button
+                              onClick={() => handleDenyRequest(req.id)}
+                              className="flex items-center gap-1.5 bg-white hover:bg-rose-50 border border-rose-200 text-rose-600 font-extrabold text-xs py-2.5 px-4 rounded-xl cursor-pointer transition-all"
+                            >
+                              <XIcon className="w-3.5 h-3.5" />
+                              رفض
+                            </button>
+                          </>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-slate-400 text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5">
+                            <Info className="w-3.5 h-3.5" />
+                            تم معالجة الطلب وإغلاقه
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
               })}
 
               {requests.length === 0 && (
-                <div className="text-center py-16 bg-white border border-slate-100 rounded-2.5xl text-slate-400 text-xs font-bold">
+                <div className="text-center py-16 bg-white border border-slate-100 rounded-2xl text-slate-400 text-xs font-bold">
                   لا يوجد أي طلبات تموين في المنظومة الآن.
                 </div>
               )}
