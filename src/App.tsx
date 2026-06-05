@@ -1889,44 +1889,247 @@ export default function App() {
             </div>
           </div>
         ) : activeTab === 'reports' ? (
-          // REPORTS TAB
-          <div className="animate-fade-in mt-2 space-y-4" dir="rtl">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-205">
-              <div>
-                <h2 className="text-lg font-black text-slate-800">بيانات الأداء الإحصائي العام</h2>
-                <p className="text-[11px] text-slate-400 font-bold">ملخصات شهرية لتوزيع المساعدات والدعم التمويني المقدم لخدمة المجتمع.</p>
-              </div>
-            </div>
+          (() => {
+            // ---- حسابات حقيقية من قاعدة البيانات ----
+            const today = new Date().toISOString().split('T')[0];
+            const thisMonth = today.slice(0, 7);
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div className="bg-white border border-slate-200 rounded-2.5xl p-5 shadow-2xs">
-                <h4 className="font-extrabold text-[13px] text-slate-500 mb-2">تقدير استدامة العجز للأسبوع القادم</h4>
-                <div className="text-3xl font-black text-emerald-800 font-sans">١٢,٠٠٠ وجبة</div>
-                <p className="text-[10px] text-slate-400 font-bold mt-2">مستهدف الموارد المؤمنة في المخازن مقارنة بالاحتياج اللوجستي.</p>
-              </div>
-              <div className="bg-white border border-slate-200 rounded-2.5xl p-5 shadow-2xs">
-                <h4 className="font-extrabold text-[13px] text-slate-500 mb-2">مجموع المواد المصروفة للتمليك والتكيات</h4>
-                <div className="text-3xl font-black text-slate-850 font-sans">١,٢٥٠ كغ / يوم</div>
-                <p className="text-[10px] text-slate-400 font-bold mt-2">متوسط الاستهلاك اليومي للحبوب والبروتينات في المطابخ.</p>
-              </div>
-              <div className="bg-white border border-slate-200 rounded-2.5xl p-5 shadow-2xs">
-                <h4 className="font-extrabold text-[13px] text-slate-500 mb-2">كفاءة الأداء التشغيلي المالي</h4>
-                <div className="text-3xl font-black text-[#166534] font-sans">٩٦.٤٪</div>
-                <p className="text-[10px] text-slate-400 font-bold mt-2">نسبة الصرف الدقيق الموجه مباشرة لمطابخ الإعاشة دون فاقد.</p>
-              </div>
-            </div>
+            // الوجبات
+            const totalMeals = mealDistributions.reduce((s, d) => s + d.mealsCount, 0);
+            const todayMeals = mealDistributions.filter(d => d.distributionDate === today).reduce((s, d) => s + d.mealsCount, 0);
+            const monthMeals = mealDistributions.filter(d => d.distributionDate.startsWith(thisMonth)).reduce((s, d) => s + d.mealsCount, 0);
 
-            <div className="bg-white rounded-2.5xl p-6 border border-slate-200/60 shadow-3xs text-center space-y-3">
-              <p className="text-sm font-bold text-slate-600">منظومة سواعد الخير ERP تصدر إقرارات رقمية مشفرة لضمان الشفافية والموثوقية أمام الشركاء والجهات المانحة.</p>
-              <button
-                onClick={() => alert("جاري تجهيز تقرير الشفافية السنوي للعام 2026...")}
-                className="bg-emerald-800 hover:bg-emerald-950 text-white text-xs font-black px-5 py-2.5 rounded-xl transition-all shadow-xs cursor-pointer inline-flex items-center gap-1.5"
-              >
-                <Download className="w-4 h-4" />
-                <span>تنزيل التقرير المالي والتشغيلي الموحد</span>
-              </button>
-            </div>
-          </div>
+            // المخزون
+            const totalQty = products.reduce((s, p) => s + p.quantity, 0);
+            const lowStock = products.filter(p => p.quantity <= p.lowStockAlertLimit);
+            const totalExpensesMonth = expenses.filter(e => e.date?.startsWith(thisMonth)).reduce((s, e) => s + e.amount, 0);
+            const totalExpensesAll = expenses.reduce((s, e) => s + e.amount, 0);
+
+            // طلبات التموين
+            const acceptedReqs = requests.filter(r => r.status === 'مقبول').length;
+            const totalReqs = requests.length;
+            const approvalRate = totalReqs > 0 ? Math.round((acceptedReqs / totalReqs) * 100) : 0;
+
+            // الطلبات الداخلية
+            const intAccepted = internalRequests.filter(r => r.status === 'مقبول').length;
+            const intTotal = internalRequests.length;
+
+            // أكثر التكيات توزيعاً
+            const kitchenMeals: Record<string, number> = {};
+            mealDistributions.forEach(d => { kitchenMeals[d.kitchenName] = (kitchenMeals[d.kitchenName] || 0) + d.mealsCount; });
+            const topKitchens = Object.entries(kitchenMeals).sort((a, b) => b[1] - a[1]).slice(0, 3);
+
+            // المناطق الأكثر استفادة
+            const areaMeals: Record<string, number> = {};
+            mealDistributions.forEach(d => { areaMeals[d.area] = (areaMeals[d.area] || 0) + d.mealsCount; });
+            const topAreas = Object.entries(areaMeals).sort((a, b) => b[1] - a[1]).slice(0, 4);
+            const areaMax = topAreas[0]?.[1] || 1;
+
+            // أكثر فئة مصروفات
+            const catTotals: Record<string, number> = {};
+            expenses.forEach(e => { if (e.category) catTotals[e.category] = (catTotals[e.category] || 0) + e.amount; });
+            const topExpCat = Object.entries(catTotals).sort((a, b) => b[1] - a[1])[0];
+
+            return (
+              <div className="animate-fade-in mt-2 space-y-5" dir="rtl">
+
+                {/* Header */}
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                  <div>
+                    <h2 className="text-lg font-black text-slate-800">بيانات الأداء الإحصائي العام</h2>
+                    <p className="text-[11px] text-slate-400 font-bold">بيانات حية من قاعدة البيانات — آخر تحديث: {new Date().toLocaleDateString('ar-SA', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                  </div>
+                  <button
+                    onClick={() => alert("جاري تجهيز التقرير...")}
+                    className="bg-emerald-800 hover:bg-emerald-950 text-white text-xs font-black px-4 py-2.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    تنزيل التقرير
+                  </button>
+                </div>
+
+                {/* Row 1 — KPIs رئيسية */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { label: 'إجمالي الوجبات الموزّعة', value: totalMeals.toLocaleString('ar-SA'), sub: `اليوم: ${todayMeals.toLocaleString('ar-SA')}`, color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', icon: '🍽️' },
+                    { label: 'وجبات هذا الشهر', value: monthMeals.toLocaleString('ar-SA'), sub: `من ${mealDistributions.length} عملية توزيع`, color: 'text-emerald-700', bg: 'bg-white border-slate-200', icon: '📅' },
+                    { label: 'أصناف في المستودع', value: products.length.toString(), sub: `${lowStock.length} صنف قارب النفاد`, color: lowStock.length > 0 ? 'text-rose-600' : 'text-slate-700', bg: lowStock.length > 0 ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-200', icon: '📦' },
+                    { label: 'نسبة قبول طلبات التموين', value: `${approvalRate}%`, sub: `${acceptedReqs} مقبول من ${totalReqs} طلب`, color: approvalRate >= 70 ? 'text-emerald-700' : 'text-amber-600', bg: 'bg-white border-slate-200', icon: '✅' },
+                  ].map(k => (
+                    <div key={k.label} className={`${k.bg} border rounded-2xl p-4 shadow-xs`}>
+                      <div className="flex items-start justify-between mb-2">
+                        <p className="text-xs font-bold text-slate-500 leading-snug">{k.label}</p>
+                        <span className="text-xl">{k.icon}</span>
+                      </div>
+                      <p className={`text-2xl font-black ${k.color} font-sans`}>{k.value}</p>
+                      <p className="text-[10px] text-slate-400 font-bold mt-1">{k.sub}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Row 2 — توزيع التكيات + المناطق */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                  {/* أكثر التكيات توزيعاً */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+                    <h4 className="font-extrabold text-sm text-slate-700 mb-4">🏆 أكثر التكيات توزيعاً</h4>
+                    {topKitchens.length === 0 ? (
+                      <p className="text-slate-400 text-xs font-bold text-center py-6">لا توجد بيانات توزيع بعد</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {topKitchens.map(([name, count], i) => {
+                          const pct = Math.round((count / (topKitchens[0][1] || 1)) * 100);
+                          return (
+                            <div key={name}>
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white ${i === 0 ? 'bg-amber-500' : i === 1 ? 'bg-slate-400' : 'bg-amber-700'}`}>{i + 1}</span>
+                                  {name}
+                                </span>
+                                <span className="text-xs font-black text-emerald-700">{count.toLocaleString('ar-SA')} وجبة</span>
+                              </div>
+                              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-emerald-600 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* أكثر المناطق استفادة */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+                    <h4 className="font-extrabold text-sm text-slate-700 mb-4">📍 المناطق الأكثر استفادة</h4>
+                    {topAreas.length === 0 ? (
+                      <p className="text-slate-400 text-xs font-bold text-center py-6">لا توجد بيانات بعد</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {topAreas.map(([area, count]) => {
+                          const pct = Math.round((count / areaMax) * 100);
+                          return (
+                            <div key={area}>
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-xs font-bold text-slate-600 truncate max-w-[60%]">{area}</span>
+                                <span className="text-xs font-black text-slate-700">{count.toLocaleString('ar-SA')} وجبة</span>
+                              </div>
+                              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-teal-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Row 3 — المصروفات + الموظفون + الطلبات الداخلية */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+                  {/* المصروفات */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+                    <h4 className="font-extrabold text-sm text-slate-700 mb-3">💰 المصروفات الجانبية</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-xs text-slate-500 font-bold">هذا الشهر</span>
+                        <span className="text-sm font-black text-rose-600">{totalExpensesMonth.toLocaleString('ar-SA')} ₪</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-xs text-slate-500 font-bold">الإجمالي</span>
+                        <span className="text-sm font-black text-slate-700">{totalExpensesAll.toLocaleString('ar-SA')} ₪</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-xs text-slate-500 font-bold">عدد البنود</span>
+                        <span className="text-sm font-black text-slate-700">{expenses.length} بند</span>
+                      </div>
+                      {topExpCat && (
+                        <div className="flex justify-between pt-1 border-t border-slate-100">
+                          <span className="text-xs text-slate-400 font-bold">الفئة الأعلى</span>
+                          <span className="text-xs font-black text-amber-600">{topExpCat[0]}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* الموظفون */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+                    <h4 className="font-extrabold text-sm text-slate-700 mb-3">👥 الكادر الوظيفي</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-xs text-slate-500 font-bold">إجمالي الكادر</span>
+                        <span className="text-sm font-black text-slate-700">{members.length} موظف</span>
+                      </div>
+                      {(['مدير النظام','طباخ','سائق','موظف توزيع'] as const).map(role => {
+                        const count = members.filter(m => m.role === role).length;
+                        if (!count) return null;
+                        return (
+                          <div key={role} className="flex justify-between">
+                            <span className="text-xs text-slate-400 font-bold">{role}</span>
+                            <span className="text-xs font-black text-slate-600">{count}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* الطلبات الداخلية */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+                    <h4 className="font-extrabold text-sm text-slate-700 mb-3">📋 الطلبات الداخلية</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-xs text-slate-500 font-bold">إجمالي الطلبات</span>
+                        <span className="text-sm font-black text-slate-700">{intTotal}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-xs text-slate-500 font-bold">مقبولة</span>
+                        <span className="text-sm font-black text-emerald-600">{intAccepted}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-xs text-slate-500 font-bold">قيد المراجعة</span>
+                        <span className="text-sm font-black text-amber-600">{internalRequests.filter(r => r.status === 'قيد المراجعة').length}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-xs text-slate-500 font-bold">مرفوضة</span>
+                        <span className="text-sm font-black text-rose-600">{internalRequests.filter(r => r.status === 'مرفوض').length}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 4 — المخزون المنخفض */}
+                {lowStock.length > 0 && (
+                  <div className="bg-rose-50 border border-rose-200 rounded-2xl p-5">
+                    <h4 className="font-extrabold text-sm text-rose-700 mb-3 flex items-center gap-2">
+                      <span>⚠️</span> أصناف قاربت النفاد ({lowStock.length} صنف)
+                    </h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {lowStock.slice(0, 8).map(p => (
+                        <div key={p.id} className="bg-white border border-rose-200 rounded-xl px-3 py-2">
+                          <p className="text-xs font-black text-slate-700 truncate">{p.name}</p>
+                          <p className="text-sm font-black text-rose-600">{p.quantity} {p.unit}</p>
+                          <p className="text-[10px] text-slate-400">الحد: {p.lowStockAlertLimit} {p.unit}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Footer */}
+                <div className="bg-white rounded-2xl p-5 border border-slate-200 text-center space-y-3">
+                  <p className="text-sm font-bold text-slate-600">منظومة سواعد الخير ERP تصدر إقرارات رقمية مشفرة لضمان الشفافية والموثوقية أمام الشركاء والجهات المانحة.</p>
+                  <button
+                    onClick={() => alert("جاري تجهيز تقرير الشفافية السنوي للعام 2026...")}
+                    className="bg-emerald-800 hover:bg-emerald-950 text-white text-xs font-black px-5 py-2.5 rounded-xl transition-all shadow-xs cursor-pointer inline-flex items-center gap-1.5"
+                  >
+                    <Download className="w-4 h-4" />
+                    تنزيل التقرير المالي والتشغيلي الموحد
+                  </button>
+                </div>
+
+              </div>
+            );
+          })()
         ) : activeTab === 'internal-requests' ? (
           <InternalRequestsPage
             requests={internalRequests}
