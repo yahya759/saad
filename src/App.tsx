@@ -1094,8 +1094,9 @@ export default function App() {
                 <BottomGrid 
                   members={members} 
                   onAddMemberClick={() => setIsEmployeeModalOpen(true)} 
-                  onRemoveMember={handleRemoveEmployee} 
-                  percentageAchievements={41}
+                  onRemoveMember={handleRemoveEmployee}
+                  kitchens={kitchens}
+                  mealDistributions={mealDistributions}
                 />
               </div>
 
