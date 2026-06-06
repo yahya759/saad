@@ -20,7 +20,11 @@ export interface Kitchen {
   currentMealsToday: number;
 }
 
-export type RequestStatus = 'قيد المراجعة' | 'مقبول' | 'مرفوض';
+export type RequestStatus = 
+  | 'قيد مراجعة المدير'
+  | 'جار العمل عليه'
+  | 'تم التسليم'
+  | 'مرفوض';
 
 export interface MaterialRequest {
   id: string;

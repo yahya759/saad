@@ -87,7 +87,7 @@ const INITIAL_REQUESTS: MaterialRequest[] = [
     kitchenId: 'k1',
     kitchenName: 'تكية غزة البلد المركزية',
     items: [{ productId: 'p1', name: 'أرز بسمتي ذهبي كلاسيك', quantity: 800, unit: 'كغ' }],
-    status: 'قيد المراجعة',
+    status: 'قيد مراجعة المدير',
     date: '2026-06-03'
   },
   {
@@ -95,7 +95,7 @@ const INITIAL_REQUESTS: MaterialRequest[] = [
     kitchenId: 'k3',
     kitchenName: 'تكية رفح الكبرى للإغاثة',
     items: [{ productId: 'p3', name: 'دجاج مبرد صحي', quantity: 350, unit: 'كغ' }],
-    status: 'قيد المراجعة',
+    status: 'قيد مراجعة المدير',
     date: '2026-06-03'
   },
 ];
@@ -353,18 +353,28 @@ export default function App() {
     if (ok) setMembers(prev => prev.filter(e => e.id !== id));
   };
 
-  // Auto deductive material request system
+  // ===== Workflow: المدير يوافق → جار العمل عليه عند المستودع =====
   const handleAcceptRequest = async (reqId: string) => {
     if (!perms.canApproveRequests) {
       alert("لا تملك الصلاحية للموافقة على طلبات تموين المواد.");
       return;
     }
-
     const request = requests.find(r => r.id === reqId);
     if (!request) return;
-    if (request.status !== 'قيد المراجعة') { alert("هذا الطلب معالَج مسبقاً."); return; }
+    if (request.status !== 'قيد مراجعة المدير') { alert("هذا الطلب ليس في مرحلة مراجعة المدير."); return; }
 
-    // Verify stock availability
+    await updateMaterialRequestStatus(reqId, 'جار العمل عليه');
+    setRequests(prev => prev.map(r => r.id === reqId ? { ...r, status: 'جار العمل عليه' } : r));
+    alert("✅ تمت الموافقة! تم إحالة الطلب إلى مسؤول المستودع لتجهيز المواد.");
+  };
+
+  // ===== Workflow: المستودع ينجز → تم التسليم + إضافة للتكية =====
+  const handleCompleteRequest = async (reqId: string) => {
+    const request = requests.find(r => r.id === reqId);
+    if (!request) return;
+    if (request.status !== 'جار العمل عليه') { alert("الطلب ليس في مرحلة التجهيز."); return; }
+
+    // تحقق من توفر المخزون
     let inventoryUnavailable = false;
     const nextProducts = products.map(p => {
       const matchItem = request.items.find(item => item.productId === p.id);
@@ -376,39 +386,53 @@ export default function App() {
     });
 
     if (inventoryUnavailable) {
-      alert("تحذير تمويني: رصيد المادة في المخزن المركزي غير كافٍ للموافقة!");
+      alert("⚠️ تحذير: رصيد مادة في المخزن غير كافٍ! يرجى مراجعة المخزون أولاً.");
       return;
     }
 
-    // Update Supabase - the DB trigger handles inventory deduction automatically
-    await updateMaterialRequestStatus(reqId, 'مقبول');
-
-    // Update local state
+    // خصم من المخزون
+    for (const updProd of nextProducts) {
+      const orig = products.find(p => p.id === updProd.id);
+      if (orig && orig.quantity !== updProd.quantity) {
+        await updateProduct(updProd);
+      }
+    }
     setProducts(nextProducts);
-    setRequests(prev => prev.map(r => r.id === reqId ? { ...r, status: 'مقبول' } : r));
 
-    // Refresh logs from DB (trigger may have inserted logs)
-    const newLogs = await fetchInventoryLogs();
-    setLogs(newLogs);
-
-    // Boost kitchen meals
-    const firstItem = request.items[0];
-    const updatedKitchen = kitchens.find(k => k.id === request.kitchenId);
-    if (updatedKitchen) {
-      const newMeals = Math.min(updatedKitchen.dailyMealsGoal, updatedKitchen.currentMealsToday + Math.round(firstItem.quantity * 2.2));
-      const updated = { ...updatedKitchen, currentMealsToday: newMeals };
+    // إضافة للتكية — تحديث currentMealsToday
+    const kitchen = kitchens.find(k => k.id === request.kitchenId);
+    if (kitchen) {
+      const boost = request.items.reduce((s, i) => s + Math.round(i.quantity * 2.2), 0);
+      const updated = { ...kitchen, currentMealsToday: Math.min(kitchen.dailyMealsGoal, kitchen.currentMealsToday + boost) };
       await updateKitchen(updated);
       setKitchens(prev => prev.map(k => k.id === updated.id ? updated : k));
     }
 
-    alert(`تمت الموافقة بنجاح وصرف الحصة للمطبخ الميداني.`);
+    // تسجيل في سجل المخزن
+    for (const item of request.items) {
+      await insertInventoryLog({
+        productId: item.productId, productName: item.name, type: 'صرف',
+        quantity: item.quantity, unit: item.unit,
+        destination: request.kitchenName,
+        date: new Date().toISOString().split('T')[0], user: 'مسؤول المستودع',
+      });
+    }
+    const newLogs = await fetchInventoryLogs();
+    setLogs(newLogs);
+
+    // تحديث الحالة
+    await updateMaterialRequestStatus(reqId, 'تم التسليم');
+    setRequests(prev => prev.map(r => r.id === reqId ? { ...r, status: 'تم التسليم' } : r));
+    alert(`✅ تم التسليم بنجاح! تمت إضافة المواد لتكية "${request.kitchenName}".`);
   };
 
   const handleDenyRequest = async (reqId: string) => {
     if (!perms.canApproveRequests) { alert("لا تملك الصلاحية لرفض الطلبات."); return; }
+    const request = requests.find(r => r.id === reqId);
+    if (!request || request.status === 'تم التسليم') { alert("لا يمكن رفض طلب مكتمل."); return; }
     await updateMaterialRequestStatus(reqId, 'مرفوض');
     setRequests(prev => prev.map(r => r.id === reqId ? { ...r, status: 'مرفوض' } : r));
-    alert("تم رفض طلب التموين المحدد وتنبيه التكية المانحة.");
+    alert("تم رفض طلب التموين وإشعار التكية.");
   };
 
   const handleCreateRequest = async (newReq: Omit<MaterialRequest, 'id' | 'status' | 'date'>) => {
@@ -416,7 +440,7 @@ export default function App() {
     if (!newId) return;
     const updatedRequests = await fetchMaterialRequests(kitchens);
     setRequests(updatedRequests);
-    alert("تم تقديم طلب التموين بنجاح. أرسل الإخطار لأمين المستودع المركزي.");
+    alert("✅ تم تقديم طلب التموين بنجاح وإرساله للمدير للمراجعة.");
   };
 
   // Register side expense
@@ -479,7 +503,7 @@ export default function App() {
 
   // Derive global counters for stats
   const totalInStockKg = products.filter(p => p.category !== 'تشغيل وطاقة').reduce((sum, p) => sum + p.quantity, 0);
-  const pendingCount = requests.filter(r => r.status === 'قيد المراجعة').length;
+  const pendingCount = requests.filter(r => r.status === 'قيد مراجعة المدير' || r.status === 'جار العمل عليه').length;
   const mealsSumToday = kitchens.reduce((sum, k) => sum + k.currentMealsToday, 0);
 
   // Helper: dialog-based quantity adjustment for product cards
@@ -557,13 +581,14 @@ export default function App() {
                 <span>تقديم طلب تمويل 📦</span>
               </button>
 
-              <button
-                onClick={() => setIsProductModalOpen(true)}
-                className="bg-emerald-800 hover:bg-emerald-950 text-white font-extrabold text-xs py-2.5 px-4.5 rounded-xl cursor-pointer flex items-center gap-1.5 shadow-sm transition-all hover:scale-[1.01]"
+              <div
+                className="bg-slate-100 text-slate-400 font-extrabold text-xs py-2.5 px-4 rounded-xl flex items-center gap-1.5 border border-slate-200 cursor-not-allowed"
+                title="الإضافة للمستودع الرئيسي تتم من صفحة المخزون المركزي فقط"
+                onClick={() => alert("⚠️ لا يمكن إضافة مواد للمستودع الرئيسي من هنا.\n\nللحصول على مواد: قدّم طلب تمويل أعلاه.")}
               >
-                <Plus className="w-4 h-4" />
-                <span>إضافة صنف جديد +</span>
-              </button>
+                <Package className="w-4 h-4" />
+                <span>إضافة للمستودع الرئيسي</span>
+              </div>
             </div>
           </div>
 
@@ -1431,28 +1456,30 @@ export default function App() {
             {/* Header */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <div>
-                <h2 className="text-lg font-black text-slate-800">إدارة طلبات التموين والموافقات المخزنية</h2>
-                <p className="text-[11px] text-slate-400 font-bold">تلقي ومراجعة الطلبات الموجهة من التكيات الميدانية إلى المستودع المركزي.</p>
+                <h2 className="text-lg font-black text-slate-800">إدارة طلبات التموين</h2>
+                <p className="text-[11px] text-slate-400 font-bold">التكية تطلب ← المدير يوافق ← المستودع يُسلّم</p>
               </div>
               <button
                 onClick={() => setIsRequestModalOpen(true)}
                 className="bg-emerald-800 hover:bg-emerald-950 text-white font-extrabold text-xs py-2 px-3.5 rounded-xl cursor-pointer flex items-center gap-1.5 transition-all shadow-sm"
               >
                 <Plus className="w-4 h-4" />
-                <span>إنشاء طلب تموين يدوي</span>
+                <span>طلب تموين جديد</span>
               </button>
             </div>
 
-            {/* Stats row */}
-            <div className="grid grid-cols-3 gap-3">
+            {/* Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
-                { label: 'قيد المراجعة', count: requests.filter(r => r.status === 'قيد المراجعة').length, color: 'text-amber-600', bg: 'bg-amber-50 border-amber-200' },
-                { label: 'مقبولة',        count: requests.filter(r => r.status === 'مقبول').length,         color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
-                { label: 'مرفوضة',        count: requests.filter(r => r.status === 'مرفوض').length,         color: 'text-rose-600',    bg: 'bg-rose-50 border-rose-200' },
+                { label: 'قيد مراجعة المدير', count: requests.filter(r => r.status === 'قيد مراجعة المدير').length, color: 'text-amber-600',   bg: 'bg-amber-50 border-amber-200',   icon: '📋' },
+                { label: 'جار العمل عليه',    count: requests.filter(r => r.status === 'جار العمل عليه').length,    color: 'text-blue-600',    bg: 'bg-blue-50 border-blue-200',     icon: '⚙️' },
+                { label: 'تم التسليم',         count: requests.filter(r => r.status === 'تم التسليم').length,         color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', icon: '✅' },
+                { label: 'مرفوضة',             count: requests.filter(r => r.status === 'مرفوض').length,              color: 'text-rose-600',    bg: 'bg-rose-50 border-rose-200',     icon: '❌' },
               ].map(s => (
                 <div key={s.label} className={`${s.bg} border rounded-2xl p-3 text-center`}>
+                  <p className="text-xl mb-0.5">{s.icon}</p>
                   <p className={`text-2xl font-black ${s.color}`}>{s.count}</p>
-                  <p className="text-xs text-slate-500 font-bold mt-0.5">{s.label}</p>
+                  <p className="text-[10px] text-slate-500 font-bold mt-0.5">{s.label}</p>
                 </div>
               ))}
             </div>
@@ -1460,79 +1487,77 @@ export default function App() {
             {/* Request Cards */}
             <div className="space-y-3">
               {requests.map(req => {
-                const isPending  = req.status === 'قيد المراجعة';
-                const isApproved = req.status === 'مقبول';
-                const isRejected = req.status === 'مرفوض';
+                const isPendingDirector = req.status === 'قيد مراجعة المدير';
+                const isInProgress      = req.status === 'جار العمل عليه';
+                const isDelivered       = req.status === 'تم التسليم';
+                const isRejected        = req.status === 'مرفوض';
+
+                const accentColor = isPendingDirector ? 'bg-amber-400' : isInProgress ? 'bg-blue-500' : isDelivered ? 'bg-emerald-500' : 'bg-rose-400';
+                const borderColor = isPendingDirector ? 'border-amber-200 hover:border-amber-300' : isInProgress ? 'border-blue-200 hover:border-blue-300' : isDelivered ? 'border-emerald-200' : 'border-rose-100';
+                const badgeCls    = isPendingDirector ? 'bg-amber-50 text-amber-700 border-amber-200' : isInProgress ? 'bg-blue-50 text-blue-700 border-blue-200' : isDelivered ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200';
+                const badgeIcon   = isPendingDirector ? '⏳' : isInProgress ? '⚙️' : isDelivered ? '✅' : '❌';
+
                 return (
-                  <div
-                    key={req.id}
-                    className={`relative bg-white rounded-2xl shadow-xs overflow-hidden border transition-all ${
-                      isPending  ? 'border-amber-200 hover:shadow-md hover:border-amber-300' :
-                      isApproved ? 'border-emerald-200' :
-                                   'border-rose-100'
-                    }`}
-                  >
-                    {/* Colored left accent bar */}
-                    <div className={`absolute right-0 top-0 bottom-0 w-1 rounded-r-2xl ${
-                      isPending  ? 'bg-amber-400' :
-                      isApproved ? 'bg-emerald-500' :
-                                   'bg-rose-400'
-                    }`} />
+                  <div key={req.id} className={`relative bg-white rounded-2xl shadow-xs overflow-hidden border transition-all ${borderColor}`}>
+                    {/* Accent bar */}
+                    <div className={`absolute right-0 top-0 bottom-0 w-1 rounded-r-2xl ${accentColor}`} />
 
                     <div className="pr-4 pl-4 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="space-y-2.5 flex-1 min-w-0">
 
-                      {/* Left: info */}
-                      <div className="space-y-2.5 flex-1 text-right min-w-0">
-
-                        {/* Top meta row */}
+                        {/* Meta */}
                         <div className="flex flex-wrap items-center gap-2">
-                          {/* Status badge */}
-                          <span className={`inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-lg border ${
-                            isPending  ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                            isApproved ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                         'bg-rose-50 text-rose-700 border-rose-200'
-                          }`}>
-                            {isPending  ? '⏳' : isApproved ? '✅' : '❌'}
-                            {req.status}
+                          <span className={`inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-lg border ${badgeCls}`}>
+                            {badgeIcon} {req.status}
                           </span>
-                          {/* Date */}
-                          <span className="text-[10px] text-slate-400 font-bold bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg">
-                            📅 {req.date}
-                          </span>
-                          {/* ID — truncated */}
-                          <span className="text-[9px] text-slate-300 font-mono hidden md:inline truncate max-w-[140px]">
-                            #{req.id.slice(0, 8)}...
-                          </span>
+                          <span className="text-[10px] text-slate-400 font-bold bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg">📅 {req.date}</span>
                         </div>
 
-                        {/* Kitchen name */}
+                        {/* Kitchen */}
                         <div className="flex items-center gap-2">
                           <span className="text-[11px] text-slate-400 font-bold">جهة الطلب:</span>
                           <span className="font-black text-slate-800 text-sm">{req.kitchenName}</span>
                         </div>
 
-                        {/* Items chips */}
+                        {/* Items */}
                         <div className="flex flex-wrap gap-2">
                           {req.items.map((item, i) => (
                             <span key={i} className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 shadow-xs">
-                              <span className="text-slate-500">{item.name}</span>
+                              <span className="text-slate-600">{item.name}</span>
                               <span className="w-px h-3 bg-slate-300" />
                               <span className="text-emerald-700 font-extrabold font-sans">{item.quantity} {item.unit}</span>
                             </span>
                           ))}
                         </div>
+
+                        {/* Progress steps */}
+                        <div className="flex items-center gap-1.5 pt-1">
+                          {[
+                            { label: 'الطلب', done: true },
+                            { label: 'موافقة المدير', done: !isPendingDirector },
+                            { label: 'تجهيز المستودع', done: isDelivered },
+                            { label: 'التسليم', done: isDelivered },
+                          ].map((step, i, arr) => (
+                            <React.Fragment key={step.label}>
+                              <div className={`flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-md ${step.done ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                                {step.done ? '✓' : '○'} {step.label}
+                              </div>
+                              {i < arr.length - 1 && <span className="text-slate-300 text-xs">←</span>}
+                            </React.Fragment>
+                          ))}
+                        </div>
                       </div>
 
-                      {/* Right: actions */}
+                      {/* Actions */}
                       <div className="flex items-center gap-2 justify-end shrink-0">
-                        {isPending ? (
+                        {isPendingDirector && (
                           <>
                             <button
                               onClick={() => handleAcceptRequest(req.id)}
-                              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2.5 px-4 rounded-xl cursor-pointer transition-all shadow-sm hover:shadow-md"
+                              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2.5 px-4 rounded-xl cursor-pointer transition-all shadow-sm"
                             >
                               <Check className="w-3.5 h-3.5" />
-                              قبول وصرف
+                              موافقة المدير
                             </button>
                             <button
                               onClick={() => handleDenyRequest(req.id)}
@@ -1542,10 +1567,20 @@ export default function App() {
                               رفض
                             </button>
                           </>
-                        ) : (
-                          <div className="flex items-center gap-1.5 text-slate-400 text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5">
+                        )}
+                        {isInProgress && (
+                          <button
+                            onClick={() => handleCompleteRequest(req.id)}
+                            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs py-2.5 px-4 rounded-xl cursor-pointer transition-all shadow-sm"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            تم التسليم للتكية ✓
+                          </button>
+                        )}
+                        {(isDelivered || isRejected) && (
+                          <div className={`flex items-center gap-1.5 text-xs font-bold px-4 py-2.5 rounded-xl border ${isDelivered ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>
                             <Info className="w-3.5 h-3.5" />
-                            تم معالجة الطلب وإغلاقه
+                            {isDelivered ? 'تم التسليم بنجاح' : 'تم الرفض'}
                           </div>
                         )}
                       </div>
@@ -1556,7 +1591,7 @@ export default function App() {
 
               {requests.length === 0 && (
                 <div className="text-center py-16 bg-white border border-slate-100 rounded-2xl text-slate-400 text-xs font-bold">
-                  لا يوجد أي طلبات تموين في المنظومة الآن.
+                  لا يوجد طلبات تموين حتى الآن.
                 </div>
               )}
             </div>

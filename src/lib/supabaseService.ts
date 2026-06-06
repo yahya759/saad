@@ -145,7 +145,7 @@ export const fetchMaterialRequests = async (kitchens: Kitchen[]): Promise<Materi
 export const insertMaterialRequest = async (req: Omit<MaterialRequest, 'id' | 'status' | 'date'>): Promise<string | null> => {
   const date = new Date().toISOString().split('T')[0];
   const { data, error } = await supabase.from('material_requests').insert({
-    kitchen_id: req.kitchenId, status: 'قيد المراجعة', date,
+    kitchen_id: req.kitchenId, status: 'قيد مراجعة المدير', date,
   }).select().single();
   if (error) { console.error('insertMaterialRequest:', error); return null; }
 
