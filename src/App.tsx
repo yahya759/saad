@@ -391,7 +391,7 @@ export default function App() {
       return;
     }
 
-    // خصم من المخزون
+    // 1. خصم من المخزون الرئيسي
     for (const updProd of nextProducts) {
       const orig = products.find(p => p.id === updProd.id);
       if (orig && orig.quantity !== updProd.quantity) {
@@ -400,7 +400,36 @@ export default function App() {
     }
     setProducts(nextProducts);
 
-    // إضافة للتكية — تحديث currentMealsToday
+    // 2. إضافة المواد لمخزون التكية
+    for (const item of request.items) {
+      // ابحث عن المنتج في مخزون التكية المحددة
+      const kitchenProduct = products.find(
+        p => p.name === item.name && p.kitchenId === request.kitchenId
+      );
+
+      if (kitchenProduct) {
+        // موجود — زد الكمية
+        const updated = { ...kitchenProduct, quantity: kitchenProduct.quantity + item.quantity };
+        await updateProduct(updated);
+        setProducts(prev => prev.map(p => p.id === updated.id ? updated : p));
+      } else {
+        // غير موجود — أنشئه في مخزون التكية
+        const mainProduct = products.find(p => p.id === item.productId);
+        const newKitchenProduct = await insertProduct({
+          name: item.name,
+          category: mainProduct?.category ?? 'مواد غذائية',
+          quantity: item.quantity,
+          unit: item.unit,
+          lowStockAlertLimit: Math.round(item.quantity * 0.2),
+          kitchenId: request.kitchenId,
+        });
+        if (newKitchenProduct) {
+          setProducts(prev => [...prev, newKitchenProduct]);
+        }
+      }
+    }
+
+    // 3. تحديث currentMealsToday للتكية
     const kitchen = kitchens.find(k => k.id === request.kitchenId);
     if (kitchen) {
       const boost = request.items.reduce((s, i) => s + Math.round(i.quantity * 2.2), 0);
@@ -409,7 +438,7 @@ export default function App() {
       setKitchens(prev => prev.map(k => k.id === updated.id ? updated : k));
     }
 
-    // تسجيل في سجل المخزن
+    // 4. تسجيل في سجل المخزن
     for (const item of request.items) {
       await insertInventoryLog({
         productId: item.productId, productName: item.name, type: 'صرف',
