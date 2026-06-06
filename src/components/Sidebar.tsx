@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   Coins,
   Inbox,
+  CalendarCheck,
   X
 } from 'lucide-react';
 
@@ -38,6 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'internal-requests',  label: 'الطلبات الداخلية',    icon: Inbox,           badge: internalRequestsCount > 0 ? `${internalRequestsCount}` : null },
     { id: 'expenses',           label: 'المصروفات الجانبية',  icon: Coins,           badge: null },
     { id: 'employees',          label: 'إدارة الموظفين',      icon: Users,           badge: null },
+    { id: 'attendance',         label: 'الحضور والغياب',      icon: CalendarCheck,   badge: null },
     { id: 'reports',            label: 'التقارير والإحصاء',   icon: BarChart3,       badge: null },
   ];
 

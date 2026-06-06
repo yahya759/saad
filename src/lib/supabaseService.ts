@@ -277,3 +277,29 @@ export const deleteSideExpense = async (id: string): Promise<boolean> => {
   }
   return true;
 };
+
+// ==================== ATTENDANCE ====================
+export interface AttendanceRecord {
+  id: string;
+  employeeId: string;
+  date: string;
+  status: 'حاضر' | 'غائب' | 'إجازة';
+}
+
+export const fetchAttendanceByMonth = async (year: number, month: number): Promise<AttendanceRecord[]> => {
+  const from = `${year}-${String(month).padStart(2,'0')}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const to = `${year}-${String(month).padStart(2,'0')}-${lastDay}`;
+  const { data, error } = await supabase.from('attendance').select('*').gte('date', from).lte('date', to);
+  if (error) { console.error('fetchAttendance:', error); return []; }
+  return data.map(d => ({ id: d.id, employeeId: d.employee_id, date: d.date, status: d.status }));
+};
+
+export const upsertAttendance = async (employeeId: string, date: string, status: 'حاضر' | 'غائب' | 'إجازة'): Promise<boolean> => {
+  const { error } = await supabase.from('attendance').upsert(
+    { employee_id: employeeId, date, status },
+    { onConflict: 'employee_id,date' }
+  );
+  if (error) { console.error('upsertAttendance:', error); return false; }
+  return true;
+};

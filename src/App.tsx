@@ -18,6 +18,7 @@ import { RightPanel } from './components/RightPanel';
 import { InternalRequestsPage } from './components/InternalRequestsPage';
 import { InternalRequestForm } from './components/InternalRequestForm';
 import { MealDistributionLog } from './components/MealDistributionLog';
+import { AttendancePage } from './components/AttendancePage';
 import { 
   AddProductModal, 
   EditProductModal,
@@ -2208,6 +2209,10 @@ export default function App() {
               </div>
             );
           })()
+        ) : activeTab === 'attendance' ? (
+          <div className="animate-fade-in mt-2">
+            <AttendancePage members={members} />
+          </div>
         ) : activeTab === 'internal-requests' ? (
           <InternalRequestsPage
             requests={internalRequests}
