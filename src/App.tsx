@@ -1202,6 +1202,51 @@ export default function App() {
               </div>
             </div>
 
+            {/* ===== طلبات تحتاج إنجاز من المستودع ===== */}
+            {requests.filter(r => r.status === 'جار العمل عليه').length > 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">⚙️</span>
+                  <h3 className="font-black text-blue-800 text-sm">
+                    طلبات بانتظار التجهيز والتسليم
+                    <span className="mr-2 bg-blue-600 text-white text-[10px] font-black px-2 py-0.5 rounded-lg">
+                      {requests.filter(r => r.status === 'جار العمل عليه').length}
+                    </span>
+                  </h3>
+                </div>
+
+                <div className="space-y-2">
+                  {requests.filter(r => r.status === 'جار العمل عليه').map(req => (
+                    <div key={req.id} className="bg-white border border-blue-200 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-black text-slate-800 text-sm">{req.kitchenName}</span>
+                          <span className="text-[10px] text-slate-400 font-bold">📅 {req.date}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {req.items.map((item, i) => (
+                            <span key={i} className="inline-flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-1 text-xs font-bold text-blue-800">
+                              {item.name}
+                              <span className="w-px h-3 bg-blue-200" />
+                              <span className="font-extrabold">{item.quantity} {item.unit}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => handleCompleteRequest(req.id)}
+                        className="shrink-0 flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2.5 px-5 rounded-xl cursor-pointer transition-all shadow-sm whitespace-nowrap"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        تم التسليم للتكية ✓
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Grid display of product cards mirroring the requested dashboard layout */}
             {filteredProducts.length === 0 ? (
               <div className="bg-white border border-slate-200 rounded-2.5xl p-12 text-center text-slate-450 font-bold text-xs shadow-3xs/80">
