@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { supabase } from './lib/supabaseClient';
 import {
   fetchProducts, insertProduct, updateProduct, deleteProduct,
   fetchKitchens, insertKitchen, updateKitchen, deleteKitchen,
@@ -188,6 +189,22 @@ export default function App() {
 
   useEffect(() => {
     loadAllData();
+  }, [loadAllData]);
+
+  // ===== Real-time subscriptions =====
+  useEffect(() => {
+    const tables = ['products', 'kitchens', 'material_requests', 'employees', 'inventory_logs', 'side_expenses', 'internal_requests', 'meal_distributions'];
+
+    const channels = tables.map(table =>
+      supabase
+        .channel(`realtime:${table}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table }, () => {
+          loadAllData();
+        })
+        .subscribe()
+    );
+
+    return () => { channels.forEach(c => supabase.removeChannel(c)); };
   }, [loadAllData]);
 
   // Modal open/close hooks
