@@ -392,32 +392,18 @@ export default function App() {
     if (!request) return;
     if (request.status !== 'جار العمل عليه') { alert("الطلب ليس في مرحلة التجهيز."); return; }
 
-    // تحقق من توفر المخزون
-    let inventoryUnavailable = false;
-    products.forEach(p => {
-      const matchItem = request.items.find(item => item.productId === p.id && !p.kitchenId);
-      if (matchItem && p.quantity < matchItem.quantity) inventoryUnavailable = true;
-    });
-
-    if (inventoryUnavailable) {
-      alert("⚠️ رصيد مادة في المخزن غير كافٍ! راجع المخزون أولاً.");
-      return;
+    // تحقق من توفر المخزون الرئيسي فقط (kitchen_id IS NULL)
+    for (const item of request.items) {
+      const mainProd = products.find(p => p.id === item.productId && !p.kitchenId);
+      if (mainProd && mainProd.quantity < item.quantity) {
+        alert(`⚠️ رصيد "${item.name}" في المستودع الرئيسي غير كافٍ!\nالمتاح: ${mainProd.quantity} ${item.unit} — المطلوب: ${item.quantity} ${item.unit}`);
+        return;
+      }
     }
 
-    // تحديث الحالة — الـ DB trigger يتكفل بخصم المخزون وإضافة للتكية تلقائياً
+    // الـ DB trigger يتكفل بـ: خصم من المستودع + إضافة للتكية + تسجيل السجل
     await updateMaterialRequestStatus(reqId, 'تم التسليم');
-
-    // أعد تحميل كل البيانات
-    const [updatedProducts, updatedRequests, newLogs] = await Promise.all([
-      fetchProducts(),
-      fetchMaterialRequests(kitchens),
-      fetchInventoryLogs(),
-    ]);
-    setProducts(updatedProducts);
-    setRequests(updatedRequests);
-    setLogs(newLogs);
-
-    alert(`✅ تم التسليم! أُضيفت المواد لمخزون تكية "${request.kitchenName}" تلقائياً.`);
+    alert(`✅ تم التسليم! أُضيفت المواد لتكية "${request.kitchenName}" وخُصمت من المستودع.`);
   };
 
   const handleDenyRequest = async (reqId: string) => {
