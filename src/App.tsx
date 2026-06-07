@@ -566,6 +566,16 @@ export default function App() {
                 <Package className="w-4 h-4" />
                 <span>إضافة للمستودع الرئيسي</span>
               </div>
+
+              <button
+                onClick={loadAllData}
+                disabled={isLoading}
+                className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 font-extrabold text-xs py-2.5 px-4 rounded-xl flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50"
+                title="تحديث البيانات"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                <span>تحديث</span>
+              </button>
             </div>
           </div>
 
@@ -1192,6 +1202,16 @@ export default function App() {
                     </button>
                   )}
                 </div>
+
+                <button
+                  onClick={loadAllData}
+                  disabled={isLoading}
+                  className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 font-extrabold text-xs py-2.5 px-3.5 rounded-xl cursor-pointer flex items-center justify-center gap-1.5 transition-all disabled:opacity-50"
+                  title="تحديث البيانات"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                  <span>تحديث</span>
+                </button>
 
                 <button
                   onClick={() => setIsProductModalOpen(true)}
