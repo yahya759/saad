@@ -377,83 +377,30 @@ export default function App() {
 
     // تحقق من توفر المخزون
     let inventoryUnavailable = false;
-    const nextProducts = products.map(p => {
-      const matchItem = request.items.find(item => item.productId === p.id);
-      if (matchItem) {
-        if (p.quantity < matchItem.quantity) { inventoryUnavailable = true; return p; }
-        return { ...p, quantity: p.quantity - matchItem.quantity };
-      }
-      return p;
+    products.forEach(p => {
+      const matchItem = request.items.find(item => item.productId === p.id && !p.kitchenId);
+      if (matchItem && p.quantity < matchItem.quantity) inventoryUnavailable = true;
     });
 
     if (inventoryUnavailable) {
-      alert("⚠️ تحذير: رصيد مادة في المخزن غير كافٍ! يرجى مراجعة المخزون أولاً.");
+      alert("⚠️ رصيد مادة في المخزن غير كافٍ! راجع المخزون أولاً.");
       return;
     }
 
-    // 1. خصم من المخزون الرئيسي
-    for (const updProd of nextProducts) {
-      const orig = products.find(p => p.id === updProd.id);
-      if (orig && orig.quantity !== updProd.quantity) {
-        await updateProduct(updProd);
-      }
-    }
-    setProducts(nextProducts);
+    // تحديث الحالة — الـ DB trigger يتكفل بخصم المخزون وإضافة للتكية تلقائياً
+    await updateMaterialRequestStatus(reqId, 'تم التسليم');
 
-    // 2. إضافة المواد لمخزون التكية
-    for (const item of request.items) {
-      // ابحث عن المنتج في مخزون التكية المحددة
-      const kitchenProduct = products.find(
-        p => p.name === item.name && p.kitchenId === request.kitchenId
-      );
-
-      if (kitchenProduct) {
-        // موجود — زد الكمية
-        const updated = { ...kitchenProduct, quantity: kitchenProduct.quantity + item.quantity };
-        await updateProduct(updated);
-        setProducts(prev => prev.map(p => p.id === updated.id ? updated : p));
-      } else {
-        // غير موجود — أنشئه في مخزون التكية
-        const mainProduct = products.find(p => p.id === item.productId);
-        const newKitchenProduct = await insertProduct({
-          name: item.name,
-          category: mainProduct?.category ?? 'مواد غذائية',
-          quantity: item.quantity,
-          unit: item.unit,
-          lowStockAlertLimit: Math.round(item.quantity * 0.2),
-          kitchenId: request.kitchenId,
-        });
-        if (newKitchenProduct) {
-          setProducts(prev => [...prev, newKitchenProduct]);
-        }
-      }
-    }
-
-    // 3. تحديث currentMealsToday للتكية
-    const kitchen = kitchens.find(k => k.id === request.kitchenId);
-    if (kitchen) {
-      const boost = request.items.reduce((s, i) => s + Math.round(i.quantity * 2.2), 0);
-      const updated = { ...kitchen, currentMealsToday: Math.min(kitchen.dailyMealsGoal, kitchen.currentMealsToday + boost) };
-      await updateKitchen(updated);
-      setKitchens(prev => prev.map(k => k.id === updated.id ? updated : k));
-    }
-
-    // 4. تسجيل في سجل المخزن
-    for (const item of request.items) {
-      await insertInventoryLog({
-        productId: item.productId, productName: item.name, type: 'صرف',
-        quantity: item.quantity, unit: item.unit,
-        destination: request.kitchenName,
-        date: new Date().toISOString().split('T')[0], user: 'مسؤول المستودع',
-      });
-    }
-    const newLogs = await fetchInventoryLogs();
+    // أعد تحميل كل البيانات
+    const [updatedProducts, updatedRequests, newLogs] = await Promise.all([
+      fetchProducts(),
+      fetchMaterialRequests(kitchens),
+      fetchInventoryLogs(),
+    ]);
+    setProducts(updatedProducts);
+    setRequests(updatedRequests);
     setLogs(newLogs);
 
-    // تحديث الحالة
-    await updateMaterialRequestStatus(reqId, 'تم التسليم');
-    setRequests(prev => prev.map(r => r.id === reqId ? { ...r, status: 'تم التسليم' } : r));
-    alert(`✅ تم التسليم بنجاح! تمت إضافة المواد لتكية "${request.kitchenName}".`);
+    alert(`✅ تم التسليم! أُضيفت المواد لمخزون تكية "${request.kitchenName}" تلقائياً.`);
   };
 
   const handleDenyRequest = async (reqId: string) => {
