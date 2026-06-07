@@ -25,8 +25,9 @@ export const AttendancePage: React.FC<Props> = ({ members }) => {
   const [year,  setYear]  = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [records, setRecords]     = useState<AttendanceRecord[]>([]);
-  const [saving,  setSaving]      = useState<string | null>(null); // "empId-date"
+  const [saving,  setSaving]      = useState<string | null>(null);
   const [loading, setLoading]     = useState(true);
+  const [search,  setSearch]      = useState('');
 
   // Days in month
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -74,6 +75,9 @@ export const AttendancePage: React.FC<Props> = ({ members }) => {
     };
   };
 
+  const filteredMembers = members.filter(m =>
+    !search || m.name.includes(search) || m.role.includes(search)
+  );
   const prevMonth = () => { if (month === 1) { setMonth(12); setYear(y => y-1); } else setMonth(m => m-1); };
   const nextMonth = () => { if (month === 12) { setMonth(1); setYear(y => y+1); } else setMonth(m => m+1); };
 
@@ -92,17 +96,35 @@ export const AttendancePage: React.FC<Props> = ({ members }) => {
           <p className="text-[11px] text-slate-400 font-bold mt-0.5">اضغط على الخلية لتغيير الحالة • <span className="text-emerald-600">✓ حاضر</span> → <span className="text-rose-500">✗ غائب</span> → <span className="text-amber-500">○ إجازة</span></p>
         </div>
 
-        {/* Month navigator */}
-        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-3 py-2 shadow-xs">
-          <button onClick={prevMonth} className="p-1 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors">
-            <ChevronRight className="w-4 h-4 text-slate-500" />
-          </button>
-          <span className="font-black text-slate-700 text-sm min-w-[110px] text-center">
-            {AR_MONTHS[month-1]} {year}
-          </span>
-          <button onClick={nextMonth} className="p-1 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors">
-            <ChevronLeft className="w-4 h-4 text-slate-500" />
-          </button>
+        {/* Search + Month navigator */}
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {/* Search */}
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="بحث باسم الموظف..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pr-8 pl-3 py-2 text-xs font-bold border border-slate-200 rounded-xl outline-none focus:border-emerald-400 bg-white w-44"
+            />
+            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs cursor-pointer">✕</button>
+            )}
+          </div>
+
+          {/* Month navigator */}
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-3 py-2 shadow-xs">
+            <button onClick={prevMonth} className="p-1 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors">
+              <ChevronRight className="w-4 h-4 text-slate-500" />
+            </button>
+            <span className="font-black text-slate-700 text-sm min-w-[110px] text-center">
+              {AR_MONTHS[month-1]} {year}
+            </span>
+            <button onClick={nextMonth} className="p-1 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors">
+              <ChevronLeft className="w-4 h-4 text-slate-500" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -136,7 +158,7 @@ export const AttendancePage: React.FC<Props> = ({ members }) => {
       </div>
 
       {/* Grid */}
-      {members.length === 0 ? (
+      {filteredMembers.length === 0 ? (
         <div className="text-center py-16 bg-white border border-slate-100 rounded-2xl text-slate-400 text-xs font-bold">
           لا يوجد موظفون مسجلون. أضف موظفين من صفحة إدارة الموظفين أولاً.
         </div>
@@ -176,7 +198,7 @@ export const AttendancePage: React.FC<Props> = ({ members }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {members.map((emp, idx) => {
+                  {filteredMembers.map((emp, idx) => {
                     const stats = getStats(emp.id);
                     return (
                       <tr key={emp.id} className={`border-b border-slate-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}>
