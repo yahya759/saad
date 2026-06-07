@@ -1591,13 +1591,10 @@ export default function App() {
                           </>
                         )}
                         {isInProgress && (
-                          <button
-                            onClick={() => handleCompleteRequest(req.id)}
-                            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs py-2.5 px-4 rounded-xl cursor-pointer transition-all shadow-sm"
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                            تم التسليم للتكية ✓
-                          </button>
+                          <div className="flex items-center gap-1.5 bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold px-4 py-2.5 rounded-xl">
+                            <Info className="w-3.5 h-3.5" />
+                            جار التجهيز في المستودع
+                          </div>
                         )}
                         {(isDelivered || isRejected) && (
                           <div className={`flex items-center gap-1.5 text-xs font-bold px-4 py-2.5 rounded-xl border ${isDelivered ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>
