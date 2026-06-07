@@ -786,6 +786,15 @@ export default function App() {
 
             <div className="flex items-center gap-3.5 flex-wrap justify-center font-sans">
               <button
+                onClick={loadAllData}
+                disabled={isLoading}
+                className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 font-extrabold text-xs py-2.5 px-4 rounded-xl cursor-pointer flex items-center gap-1.5 transition-all disabled:opacity-50 shadow-xs"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                <span>تحديث</span>
+              </button>
+
+              <button
                 onClick={() => setIsProductModalOpen(true)}
                 className="bg-emerald-800 hover:bg-emerald-950 text-white font-extrabold text-xs py-2.5 px-4.5 rounded-xl cursor-pointer flex items-center gap-1.5 shadow-sm transition-all hover:scale-[1.01]"
               >
