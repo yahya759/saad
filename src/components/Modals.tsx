@@ -657,8 +657,11 @@ export const CreateRequestModal: React.FC<CreateRequestModalProps> = ({
   products,
   onCreate
 }) => {
+  // فقط منتجات المستودع الرئيسي (بدون kitchen_id)
+  const mainProducts = products.filter(p => !p.kitchenId);
+
   const [kitchenId, setKitchenId] = useState(kitchens[0]?.id || '');
-  const [productId, setProductId] = useState(products[0]?.id || '');
+  const [productId, setProductId] = useState(mainProducts[0]?.id || '');
   const [quantity, setQuantity] = useState(10);
 
   if (!isOpen) return null;
@@ -666,8 +669,8 @@ export const CreateRequestModal: React.FC<CreateRequestModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const kit = kitchens.find(k => k.id === kitchenId) || kitchens[0];
-    const prod = products.find(p => p.id === productId) || products[0];
-    if (!kit || !prod) return alert("يرجى التأكد من توفر تكيات ومنتجات في المخزون.");
+    const prod = mainProducts.find(p => p.id === productId) || mainProducts[0];
+    if (!kit || !prod) return alert("يرجى التأكد من توفر تكيات ومنتجات في المخزون الرئيسي.");
 
     onCreate({
       kitchenId: kit.id,
@@ -718,7 +721,9 @@ export const CreateRequestModal: React.FC<CreateRequestModalProps> = ({
                 onChange={(e) => setProductId(e.target.value)}
                 className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none bg-white font-bold"
               >
-                {products.map(p => (
+                {mainProducts.length === 0 ? (
+                  <option value="">لا توجد مواد في المستودع الرئيسي</option>
+                ) : mainProducts.map(p => (
                   <option key={p.id} value={p.id}>{p.name} (متاح: {p.quantity} {p.unit})</option>
                 ))}
               </select>
