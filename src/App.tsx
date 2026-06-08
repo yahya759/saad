@@ -512,7 +512,10 @@ export default function App() {
   const lowStockQuantity = products.filter(p => p.quantity <= p.lowStockAlertLimit).length;
 
   // Search logic for materials central tab or similar
-  const filteredProducts = products.filter(p => {
+  // المستودع الرئيسي فقط (بدون kitchen_id)
+  const mainInventoryProducts = products.filter(p => !p.kitchenId);
+
+  const filteredProducts = mainInventoryProducts.filter(p => {
     const term = searchQuery.trim().toLowerCase();
     if (!term) return true;
     return p.name.includes(term) || p.category.includes(term);
@@ -764,7 +767,7 @@ export default function App() {
           isOpen={isRequestModalOpen} 
           onClose={() => setIsRequestModalOpen(false)} 
           kitchens={kitchens} 
-          products={products} 
+          products={mainInventoryProducts} 
           onCreate={handleCreateRequest} 
         />
       </div>
@@ -2369,7 +2372,7 @@ export default function App() {
         isOpen={isRequestModalOpen} 
         onClose={() => setIsRequestModalOpen(false)} 
         kitchens={kitchens} 
-        products={products} 
+        products={mainInventoryProducts} 
         onCreate={handleCreateRequest} 
       />
 

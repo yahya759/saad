@@ -657,20 +657,29 @@ export const CreateRequestModal: React.FC<CreateRequestModalProps> = ({
   products,
   onCreate
 }) => {
-  // فقط منتجات المستودع الرئيسي (بدون kitchen_id)
-  const mainProducts = products.filter(p => !p.kitchenId);
-
-  const [kitchenId, setKitchenId] = useState(kitchens[0]?.id || '');
-  const [productId, setProductId] = useState(mainProducts[0]?.id || '');
+  // products هنا هي المستودع الرئيسي فقط (تُمرَّر من App.tsx)
+  const [kitchenId, setKitchenId] = useState('');
+  const [productId, setProductId] = useState('');
   const [quantity, setQuantity] = useState(10);
+
+  // تحديث الاختيارات لما تتغير القائمة
+  useEffect(() => {
+    if (kitchens.length > 0 && !kitchenId) setKitchenId(kitchens[0].id);
+  }, [kitchens]);
+
+  useEffect(() => {
+    if (products.length > 0 && !productId) setProductId(products[0].id);
+  }, [products]);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const kit = kitchens.find(k => k.id === kitchenId) || kitchens[0];
-    const prod = mainProducts.find(p => p.id === productId) || mainProducts[0];
+    const kit = kitchens.find(k => k.id === kitchenId);
+    const prod = products.find(p => p.id === productId);
     if (!kit || !prod) return alert("يرجى التأكد من توفر تكيات ومنتجات في المخزون الرئيسي.");
+    if (quantity <= 0) return alert("أدخل كمية صحيحة أكبر من صفر.");
+    if (quantity > prod.quantity) return alert(`⚠️ الكمية المطلوبة (${quantity}) أكبر من المتاح في المستودع (${prod.quantity} ${prod.unit}).`);
 
     onCreate({
       kitchenId: kit.id,
@@ -721,9 +730,9 @@ export const CreateRequestModal: React.FC<CreateRequestModalProps> = ({
                 onChange={(e) => setProductId(e.target.value)}
                 className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none bg-white font-bold"
               >
-                {mainProducts.length === 0 ? (
+                {products.length === 0 ? (
                   <option value="">لا توجد مواد في المستودع الرئيسي</option>
-                ) : mainProducts.map(p => (
+                ) : products.map(p => (
                   <option key={p.id} value={p.id}>{p.name} (متاح: {p.quantity} {p.unit})</option>
                 ))}
               </select>
