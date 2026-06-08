@@ -509,11 +509,13 @@ export default function App() {
     const newLogs = await fetchInventoryLogs();
     setLogs(newLogs);
   };
-  const lowStockQuantity = products.filter(p => p.quantity <= p.lowStockAlertLimit).length;
 
-  // Search logic for materials central tab or similar
   // المستودع الرئيسي فقط (بدون kitchen_id)
   const mainInventoryProducts = products.filter(p => !p.kitchenId);
+
+  const lowStockQuantity = mainInventoryProducts.filter(p => p.quantity <= p.lowStockAlertLimit).length;
+
+  // Search logic for materials central tab or similar
 
   const filteredProducts = mainInventoryProducts.filter(p => {
     const term = searchQuery.trim().toLowerCase();
@@ -1144,7 +1146,7 @@ export default function App() {
                 
                 {/* 4 KPIs with real counters */}
                 <MetricCards 
-                  totalInventoryCount={products.length} 
+                  totalInventoryCount={mainInventoryProducts.length} 
                   activeKitchensCount={kitchens.length} 
                   pendingRequestsCount={pendingCount} 
                   mealsDistributedCount={mealDistributions.reduce((s, d) => s + d.mealsCount, 0)}
@@ -2075,8 +2077,8 @@ export default function App() {
             const monthMeals = mealDistributions.filter(d => d.distributionDate.startsWith(thisMonth)).reduce((s, d) => s + d.mealsCount, 0);
 
             // المخزون
-            const totalQty = products.reduce((s, p) => s + p.quantity, 0);
-            const lowStock = products.filter(p => p.quantity <= p.lowStockAlertLimit);
+            const totalQty = mainInventoryProducts.reduce((s, p) => s + p.quantity, 0);
+            const lowStock = mainInventoryProducts.filter(p => p.quantity <= p.lowStockAlertLimit);
             const totalExpensesMonth = expenses.filter(e => e.date?.startsWith(thisMonth)).reduce((s, e) => s + e.amount, 0);
             const totalExpensesAll = expenses.reduce((s, e) => s + e.amount, 0);
 
@@ -2128,7 +2130,7 @@ export default function App() {
                   {[
                     { label: 'إجمالي الوجبات الموزّعة', value: totalMeals.toLocaleString('ar-SA'), sub: `اليوم: ${todayMeals.toLocaleString('ar-SA')}`, color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', icon: '🍽️' },
                     { label: 'وجبات هذا الشهر', value: monthMeals.toLocaleString('ar-SA'), sub: `من ${mealDistributions.length} عملية توزيع`, color: 'text-emerald-700', bg: 'bg-white border-slate-200', icon: '📅' },
-                    { label: 'أصناف في المستودع', value: products.length.toString(), sub: `${lowStock.length} صنف قارب النفاد`, color: lowStock.length > 0 ? 'text-rose-600' : 'text-slate-700', bg: lowStock.length > 0 ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-200', icon: '📦' },
+                    { label: 'أصناف في المستودع', value: mainInventoryProducts.length.toString(), sub: `${lowStock.length} صنف قارب النفاد`, color: lowStock.length > 0 ? 'text-rose-600' : 'text-slate-700', bg: lowStock.length > 0 ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-200', icon: '📦' },
                     { label: 'نسبة قبول طلبات التموين', value: `${approvalRate}%`, sub: `${acceptedReqs} مقبول من ${totalReqs} طلب`, color: approvalRate >= 70 ? 'text-emerald-700' : 'text-amber-600', bg: 'bg-white border-slate-200', icon: '✅' },
                   ].map(k => (
                     <div key={k.label} className={`${k.bg} border rounded-2xl p-4 shadow-xs`}>
